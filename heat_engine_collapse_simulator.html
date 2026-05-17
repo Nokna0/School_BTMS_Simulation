@@ -71,7 +71,7 @@ body {
   font-family: 'Courier New', monospace;
   font-size: 13px;
   padding: 16px;
-  max-width: 960px;
+  max-width: 1080px;
   margin: 0 auto;
 }
 
@@ -90,7 +90,7 @@ body {
 .card.is-alert { border-color: var(--c-warn); }
 
 .label {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--c-accent);
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -98,13 +98,14 @@ body {
 }
 
 .muted {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--c-text-faint);
   font-style: italic;
 }
 
 canvas {
   display: block;
+  margin: 0 auto;
   background: var(--c-surface);
   border-radius: 4px;
 }
@@ -121,20 +122,20 @@ canvas {
 .topbar__title    { font-size: 14px; font-weight: bold; letter-spacing: 3px; color: var(--c-accent); }
 .topbar__subtitle { font-size: 10px; color: var(--c-text-dim); letter-spacing: 1px; margin-top: 4px; }
 .topbar__readout  { text-align: right; }
-#hdr-temp         { font-size: 36px; font-weight: bold; line-height: 1; color: var(--c-success); }
-#hdr-status       { font-size: 11px; letter-spacing: 2px; color: var(--c-success); margin-top: 3px; }
-#hdr-time         { font-size: 10px; color: var(--c-text-dim); margin-top: 2px; }
+#hdr-temp         { font-size: 50px; font-weight: bold; line-height: 1; color: var(--c-success); }
+#hdr-status       { font-size: 14px; letter-spacing: 2px; color: var(--c-success); margin-top: 4px; }
+#hdr-time         { font-size: 12px; color: var(--c-text-dim); margin-top: 3px; }
 
 /* ─── GAUGES ──────────────────────────────────────────────────────────── */
 .gauges  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.big-val { font-size: 24px; font-weight: bold; line-height: 1; }
-.unit    { font-size: 13px; opacity: .6; }
+.big-val { font-size: 34px; font-weight: bold; line-height: 1; }
+.unit    { font-size: 16px; opacity: .6; }
 
 .bar-bg {
   background: var(--c-surface-2);
-  height: 4px;
-  border-radius: 2px;
-  margin-top: 8px;
+  height: 6px;
+  border-radius: 3px;
+  margin-top: 9px;
   overflow: hidden;
 }
 .bar-fill {
@@ -143,7 +144,7 @@ canvas {
   transition: width .15s;
 }
 
-.note { font-size: 10px; color: var(--c-text-dim); margin-top: 4px; }
+.note { font-size: 12px; color: var(--c-text-dim); margin-top: 5px; }
 
 /* ─── BUTTONS ─────────────────────────────────────────────────────────── */
 button {
@@ -196,8 +197,8 @@ button {
 
 /* ─── SLIDERS ─────────────────────────────────────────────────────────── */
 .slider-head { display: flex; justify-content: space-between; margin-bottom: 5px; }
-.slider-val  { font-size: 14px; font-weight: bold; color: var(--c-cool); }
-.slider-sub  { font-size: 10px; color: var(--c-text-dim); margin-top: 3px; }
+.slider-val  { font-size: 18px; font-weight: bold; color: var(--c-cool); }
+.slider-sub  { font-size: 12px; color: var(--c-text-dim); margin-top: 3px; }
 
 input[type=range] {
   width: 100%;
@@ -206,24 +207,24 @@ input[type=range] {
 }
 
 /* ─── PHYSICS READOUT ─────────────────────────────────────────────────── */
-.readout      { line-height: 2; font-size: 12px; }
+.readout      { line-height: 2; font-size: 15px; }
 .readout span { display: inline-block; }
-.readout .k   { width: 56px; }
+.readout .k   { width: 66px; }
 
 /* ─── FAILURE CASCADE ─────────────────────────────────────────────────── */
 .fc-row {
   display: flex;
   justify-content: space-between;
-  padding: 5px 0;
-  font-size: 11px;
+  padding: 6px 0;
+  font-size: 13px;
 }
 .fc-row + .fc-row { border-top: 1px solid var(--c-grid); }
 
 /* ─── EVENT LOG ───────────────────────────────────────────────────────── */
 .evtlog {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.6;
-  padding: 4px 7px;
+  padding: 5px 8px;
   border-radius: 3px;
   margin-bottom: 5px;
 }
@@ -238,7 +239,7 @@ input[type=range] {
 <header class="topbar">
   <div>
     <div class="topbar__title">THERMAL ENGINE COLLAPSE SIMULATOR</div>
-    <div class="topbar__subtitle">집중 정수 모델 · dT/dt = (Q_in − Q_out) / (m·Cp) · m·Cp = 36 kJ/K</div>
+    <div class="topbar__subtitle">열역학 1법칙(ΔU = Q, W≈0): m·c·(dT/dt) = Q_in − Q_out  ·  카르노 효율: η = 1 − T_C/T_H  ·  m·c = 36 kJ/K</div>
   </div>
   <div class="topbar__readout">
     <div id="hdr-temp">25.0°C</div>
@@ -308,9 +309,10 @@ input[type=range] {
         <div class="bar-bg"><div class="bar-fill" id="gb-temp" style="width:0%"></div></div>
       </div>
       <div class="card" id="g-eff">
-        <div class="label">열 효율</div>
-        <div class="big-val" id="gv-eff">72<span class="unit"> %</span></div>
-        <div class="bar-bg"><div class="bar-fill" id="gb-eff" style="width:72%"></div></div>
+        <div class="label">열 효율 (카르노 한계)</div>
+        <div class="big-val" id="gv-eff">0<span class="unit"> %</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="gb-eff" style="width:0%"></div></div>
+        <div class="note">η = 1 − T_C / T_H　(절대온도)</div>
       </div>
       <div class="card" id="g-fri">
         <div class="label">마찰 부하</div>
@@ -327,7 +329,7 @@ input[type=range] {
 
     <div class="card">
       <div class="label">Temperature vs time</div>
-      <canvas id="chartCanvas" width="540" height="220"></canvas>
+      <canvas id="chartCanvas" width="680" height="380"></canvas>
     </div>
 
     <div class="gauges">
@@ -361,6 +363,7 @@ const AMBIENT         = 25;    // °C
 const DT              = 0.1;   // s    per physics step
 const THERMOSTAT_OPEN = 82;    // °C   thermostat begins to open
 const THERMOSTAT_FULL = 95;    // °C   thermostat fully open
+const KELVIN          = 273.15;// °C → K   T(K) = t(°C) + 273.15
 
 /* ── THEME PALETTE ──────────────────────────────────────────────────────────
    Canvas drawing can't use CSS variables directly, so we resolve them once
@@ -403,7 +406,7 @@ function initCanvas(id, cssW, cssH) {
   c.style.height = cssH + 'px';
   return c;
 }
-const chartCanvas = initCanvas('chartCanvas', 540, 220);
+const chartCanvas = initCanvas('chartCanvas', 680, 380);
 const engCanvas   = initCanvas('engCanvas',   243, 435);
 
 /* ── SIMULATION STATE ───────────────────────────────────────────────────── */
@@ -448,17 +451,15 @@ function calcQout(T, cf) {
   return passive + active;
 }
 
-// Mechanical efficiency:
-//   < 60°C   → cold: high viscosity, tight clearances (~72–98%)
-//   60–95°C  → optimal (~98%)
-//   > 95°C   → thermal distortion, then oil/gasket failures degrade it
+// 열기관의 이론적 최대 효율 — 2015 개정 고급물리(열역학):
+//   카르노 기관의 효율  η = 1 − T_C / T_H        (절대온도 K, 열역학 제2법칙)
+//   T_H = 엔진(고열원),  T_C = 냉각계·주위(저열원)
+//   실제 열기관 효율은 항상 이 카르노 효율보다 작거나 같다 (η_real ≤ η_Carnot).
 function calcEff(T) {
-  if (T < 60) return Math.round(72 + (T - AMBIENT) / (60 - AMBIENT) * 26);
-  let e = 98;
-  if (T > 95)  e -= (T - 95)  * 0.4;
-  if (T >= 130) e -= (T - 130) * 1.0;
-  if (T >= 150) e -= (T - 150) * 2.0;
-  return Math.max(0, Math.round(e));
+  const T_H = T + KELVIN;          // 고열원 절대온도
+  const T_C = AMBIENT + KELVIN;    // 저열원 절대온도
+  const eta = 1 - T_C / T_H;       // 카르노 효율
+  return Math.max(0, Math.round(eta * 100));
 }
 
 function statusColor(T, seized) {
@@ -591,8 +592,8 @@ function updateDashboard(qin, qout, dTdt) {
   const gTempPct = Math.min(100, (T - AMBIENT) / (200 - AMBIENT) * 100);
   setGauge("temp", T.toFixed(1), "°C", gTempPct, col, T >= 107);
 
-  const effCol = eff > 65 ? C.success : eff > 35 ? C.warn : C.critical;
-  setGauge("eff", String(eff), "%", eff, effCol, eff < 65);
+  // 카르노 효율은 온도차에 따라 결정되는 이론값 → 경보 없이 정보로만 표시
+  setGauge("eff", String(eff), "%", eff, C.accent, false);
 
   const friCol = fri > 60 ? C.critical : fri > 20 ? C.warn : C.success;
   setGauge("fri", String(fri), "%", fri, friCol, fri > 20);
@@ -642,8 +643,8 @@ function redrawDashboard() {
 
 function drawChart() {
   const ctx  = chartCanvas.getContext("2d");
-  const cssW = 540, cssH = 220;
-  const pad  = { t: 10, r: 10, b: 24, l: 38 };
+  const cssW = 680, cssH = 380;
+  const pad  = { t: 18, r: 18, b: 42, l: 58 };
 
   ctx.save();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -681,16 +682,16 @@ function drawChart() {
   ];
   refs.forEach(r => {
     ctx.strokeStyle = r.c + "88";
-    ctx.lineWidth   = 1;
-    ctx.setLineDash([4, 3]);
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([6, 4]);
     ctx.beginPath();
     ctx.moveTo(pad.l, cy(r.T));
     ctx.lineTo(pad.l + cW, cy(r.T));
     ctx.stroke();
     ctx.fillStyle = r.c;
-    ctx.font      = "11px 'Courier New', monospace";
+    ctx.font      = "bold 18px 'Courier New', monospace";
     ctx.textAlign = "right";
-    ctx.fillText(r.T + "°C", pad.l + cW, cy(r.T) - 3);
+    ctx.fillText(r.T + "°C", pad.l + cW - 5, cy(r.T) - 6);
   });
   ctx.setLineDash([]);
 
@@ -701,15 +702,15 @@ function drawChart() {
 
   // Axis labels
   ctx.fillStyle = C.accent;
-  ctx.font      = "11px 'Courier New', monospace";
+  ctx.font      = "bold 18px 'Courier New', monospace";
   ctx.textAlign = "right";
-  [50, 100, 150, 200].forEach(v => ctx.fillText(v, pad.l - 5, cy(v) + 4));
+  [50, 100, 150, 200].forEach(v => ctx.fillText(v, pad.l - 8, cy(v) + 6));
 
   ctx.textAlign = "center";
   if (S.history.length > 1) {
     const step = Math.ceil((maxTime - minTime) / 5);
     for (let t = Math.ceil(minTime); t <= maxTime; t += step) {
-      ctx.fillText(t + "s", cx(t), pad.t + cH + 16);
+      ctx.fillText(t + "s", cx(t), pad.t + cH + 28);
     }
   }
 
@@ -717,7 +718,7 @@ function drawChart() {
   if (S.history.length > 1) {
     const col = statusColor(S.T, S.seized);
     ctx.strokeStyle = col;
-    ctx.lineWidth   = 2;
+    ctx.lineWidth   = 2.5;
     ctx.beginPath();
     S.history.forEach((p, i) => {
       const x = cx(p.t), y = cy(p.T);
@@ -728,7 +729,7 @@ function drawChart() {
 
     const last = S.history[S.history.length - 1];
     ctx.beginPath();
-    ctx.arc(cx(last.t), cy(last.T), 4, 0, Math.PI * 2);
+    ctx.arc(cx(last.t), cy(last.T), 5, 0, Math.PI * 2);
     ctx.fillStyle = col;
     ctx.fill();
   }
