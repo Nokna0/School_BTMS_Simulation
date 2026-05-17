@@ -1,176 +1,404 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thermal Engine Collapse Simulator</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#060a14;color:#c0cce8;font-family:'Courier New',monospace;padding:16px;font-size:13px;max-width:960px;margin:0 auto}
-.grid{display:grid;grid-template-columns:280px 1fr;gap:12px}
-.card{background:#0a0e1c;border:1px solid #141e38;border-radius:8px;padding:14px}
-.card.alert{border-color:#ff980055}
-.card.danger{border-color:#f4433655}
-.label{font-size:10px;color:#5a9aff;letter-spacing:2px;margin-bottom:6px;text-transform:uppercase}
-.big-val{font-size:24px;font-weight:bold;line-height:1}
-.bar-bg{background:#040710;height:4px;border-radius:2px;margin-top:8px;overflow:hidden}
-.bar-fill{height:100%;border-radius:2px;transition:width .15s}
-input[type=range]{width:100%;margin:5px 0;accent-color:#4fc3f7}
-button{font-family:'Courier New',monospace;cursor:pointer;border-radius:6px;letter-spacing:1px;font-size:12px}
-.btn-main{flex:2;padding:11px 0;border:1px solid #1a5040;background:#0a1a14;color:#4caf5099}
-.btn-main.running{border-color:#4caf50;color:#4caf50;background:#0d1e10}
-.btn-main.seized{border-color:#222;color:#333;cursor:not-allowed;background:#0a0a12}
-.btn-reset{flex:1;padding:11px 0;border:1px solid #1a5040;background:#0d2010;color:#4caf50}
-.evtlog{font-size:11px;line-height:1.6;padding:4px 7px;border-radius:3px;margin-bottom:5px}
-.evtlog.warn{color:#ff9800;background:#1a1200;border-left:2px solid #ff9800}
-.evtlog.danger{color:#ff5722;background:#180a06;border-left:2px solid #ff5722}
-.evtlog.critical{color:#f44336;background:#180404;border-left:2px solid #f44336}
-.speed-btn{flex:1;padding:6px 0;border:1px solid #141e38;background:#0a0e1c;color:#4a7aaa;font-family:'Courier New',monospace;cursor:pointer;border-radius:6px;font-size:11px;letter-spacing:1px}
-.speed-btn.active{border-color:#4fc3f7;color:#4fc3f7;background:#071520}
-canvas{display:block}
+/* ════════════════════════════════════════════════════════════════════════
+   THEME TOKENS
+   :root          → light mode (default)
+   prefers dark   → dark mode (only when the OS/browser asks for it)
+   The <canvas> backgrounds read these same tokens from JS so the charts
+   blend seamlessly into their surrounding cards.
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  color-scheme: light;
+  --c-bg:          #eceff5;
+  --c-surface:     #ffffff;
+  --c-surface-2:   #e6eaf1;
+  --c-border:      #d3d9e6;
+  --c-grid:        #e2e7f0;
+  --c-text:        #1e2740;
+  --c-text-dim:    #5a6580;
+  --c-text-faint:  #9aa4ba;
+  --c-accent:      #2f6df0;
+  --c-cool:        #0277bd;
+  --c-qin:         #3a6df0;
+  --c-qout:        #1d8f5e;
+  --c-success:     #2e7d32;
+  --c-amber:       #b58900;
+  --c-warn:        #e65100;
+  --c-danger:      #d84315;
+  --c-critical:    #c62828;
+  --c-warn-bg:     #fff3e0;
+  --c-danger-bg:   #ffece4;
+  --c-critical-bg: #ffe5e5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --c-bg:          #060a14;
+    --c-surface:     #0a0e1c;
+    --c-surface-2:   #040710;
+    --c-border:      #141e38;
+    --c-grid:        #0d1428;
+    --c-text:        #c0cce8;
+    --c-text-dim:    #4a7aaa;
+    --c-text-faint:  #3a5a8a;
+    --c-accent:      #5a9aff;
+    --c-cool:        #4fc3f7;
+    --c-qin:         #6a9aff;
+    --c-qout:        #6affa8;
+    --c-success:     #4caf50;
+    --c-amber:       #ffc107;
+    --c-warn:        #ff9800;
+    --c-danger:      #ff5722;
+    --c-critical:    #f44336;
+    --c-warn-bg:     #1a1200;
+    --c-danger-bg:   #180a06;
+    --c-critical-bg: #180404;
+  }
+}
+
+/* ─── BASE LAYOUT ─────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  padding: 16px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.grid       { display: grid; grid-template-columns: 280px 1fr; gap: 12px; }
+.col        { display: flex; flex-direction: column; gap: 8px; }
+.row        { display: flex; gap: 8px; }
+.row--tight { gap: 6px; }
+
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 14px;
+}
+.card--tight   { padding: 10px; }
+.card.is-alert { border-color: var(--c-warn); }
+
+.label {
+  font-size: 10px;
+  color: var(--c-accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.muted {
+  font-size: 11px;
+  color: var(--c-text-faint);
+  font-style: italic;
+}
+
+canvas {
+  display: block;
+  background: var(--c-surface);
+  border-radius: 4px;
+}
+
+/* ─── HEADER ──────────────────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--c-grid);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+.topbar__title    { font-size: 14px; font-weight: bold; letter-spacing: 3px; color: var(--c-accent); }
+.topbar__subtitle { font-size: 10px; color: var(--c-text-dim); letter-spacing: 1px; margin-top: 4px; }
+.topbar__readout  { text-align: right; }
+#hdr-temp         { font-size: 36px; font-weight: bold; line-height: 1; color: var(--c-success); }
+#hdr-status       { font-size: 11px; letter-spacing: 2px; color: var(--c-success); margin-top: 3px; }
+#hdr-time         { font-size: 10px; color: var(--c-text-dim); margin-top: 2px; }
+
+/* ─── GAUGES ──────────────────────────────────────────────────────────── */
+.gauges  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.big-val { font-size: 24px; font-weight: bold; line-height: 1; }
+.unit    { font-size: 13px; opacity: .6; }
+
+.bar-bg {
+  background: var(--c-surface-2);
+  height: 4px;
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width .15s;
+}
+
+.note { font-size: 10px; color: var(--c-text-dim); margin-top: 4px; }
+
+/* ─── BUTTONS ─────────────────────────────────────────────────────────── */
+button {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  letter-spacing: 1px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-main {
+  flex: 2;
+  padding: 11px 0;
+  border: 1px solid var(--c-success);
+  background: transparent;
+  color: var(--c-success);
+  opacity: .65;
+}
+.btn-main.is-running { opacity: 1; font-weight: bold; }
+.btn-main.is-seized  {
+  border-color: var(--c-text-faint);
+  color: var(--c-text-faint);
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.btn-reset {
+  flex: 1;
+  padding: 11px 0;
+  border: 1px solid var(--c-success);
+  background: transparent;
+  color: var(--c-success);
+}
+
+.speed-btn {
+  flex: 1;
+  padding: 6px 0;
+  border: 1px solid var(--c-border);
+  background: transparent;
+  color: var(--c-text-dim);
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  border-radius: 6px;
+}
+.speed-btn.is-active {
+  border-color: var(--c-cool);
+  color: var(--c-cool);
+}
+
+/* ─── SLIDERS ─────────────────────────────────────────────────────────── */
+.slider-head { display: flex; justify-content: space-between; margin-bottom: 5px; }
+.slider-val  { font-size: 14px; font-weight: bold; color: var(--c-cool); }
+.slider-sub  { font-size: 10px; color: var(--c-text-dim); margin-top: 3px; }
+
+input[type=range] {
+  width: 100%;
+  margin: 5px 0;
+  accent-color: var(--c-cool);
+}
+
+/* ─── PHYSICS READOUT ─────────────────────────────────────────────────── */
+.readout      { line-height: 2; font-size: 12px; }
+.readout span { display: inline-block; }
+.readout .k   { width: 56px; }
+
+/* ─── FAILURE CASCADE ─────────────────────────────────────────────────── */
+.fc-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 11px;
+}
+.fc-row + .fc-row { border-top: 1px solid var(--c-grid); }
+
+/* ─── EVENT LOG ───────────────────────────────────────────────────────── */
+.evtlog {
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 4px 7px;
+  border-radius: 3px;
+  margin-bottom: 5px;
+}
+.evtlog__t            { color: var(--c-text-dim); }
+.evtlog.warn          { color: var(--c-warn);     background: var(--c-warn-bg);     border-left: 2px solid var(--c-warn); }
+.evtlog.danger        { color: var(--c-danger);   background: var(--c-danger-bg);   border-left: 2px solid var(--c-danger); }
+.evtlog.critical      { color: var(--c-critical); background: var(--c-critical-bg); border-left: 2px solid var(--c-critical); }
 </style>
 </head>
 <body>
 
-<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #0d1428;padding-bottom:12px;margin-bottom:14px">
+<header class="topbar">
   <div>
-    <div style="font-size:14px;font-weight:bold;letter-spacing:3px;color:#6a9acc">THERMAL ENGINE COLLAPSE SIMULATOR</div>
-    <div style="font-size:10px;color:#8aaace;margin-top:4px;letter-spacing:1px">집중 정수 모델 · dT/dt = (Q_in − Q_out) / (m·Cp) · m·Cp = 36 kJ/K</div>
+    <div class="topbar__title">THERMAL ENGINE COLLAPSE SIMULATOR</div>
+    <div class="topbar__subtitle">집중 정수 모델 · dT/dt = (Q_in − Q_out) / (m·Cp) · m·Cp = 36 kJ/K</div>
   </div>
-  <div style="text-align:right">
-    <div id="hdr-temp" style="font-size:36px;font-weight:bold;line-height:1;color:#4caf50">25.0°C</div>
-    <div id="hdr-status" style="font-size:11px;letter-spacing:2px;color:#4caf50;margin-top:3px">■ 정상 운전</div>
-    <div id="hdr-time" style="font-size:10px;color:#4a7aaa;margin-top:2px">t = 0.0 s</div>
+  <div class="topbar__readout">
+    <div id="hdr-temp">25.0°C</div>
+    <div id="hdr-status">■ 정상 운전</div>
+    <div id="hdr-time">t = 0.0 s</div>
   </div>
-</div>
+</header>
 
 <div class="grid">
 
-<!-- ═══ COL1: ENGINE + CONTROLS ═══ -->
-<div style="display:flex;flex-direction:column;gap:8px">
+  <!-- ═══ COLUMN 1 — ENGINE + CONTROLS ═══════════════════════════════════ -->
+  <div class="col">
 
-  <div class="card" style="padding:10px">
-    <div class="label">ENGINE CROSS-SECTION</div>
-    <canvas id="engCanvas" width="243" height="435"></canvas>
-  </div>
-
-  <div style="display:flex;gap:8px">
-    <button id="btn-run" class="btn-main" onclick="toggleRun()">▶ START</button>
-    <button class="btn-reset" onclick="resetSim()">↺</button>
-  </div>
-
-  <div style="display:flex;gap:6px">
-    <button class="speed-btn active" id="spd-1" onclick="setSpeed(1)">1×</button>
-    <button class="speed-btn" id="spd-2" onclick="setSpeed(2)">2×</button>
-    <button class="speed-btn" id="spd-4" onclick="setSpeed(4)">4×</button>
-  </div>
-
-  <div class="card" id="sl-load-card">
-    <div style="display:flex;justify-content:space-between;margin-bottom:5px">
-      <div class="label" style="margin:0">엔진 부하 (Heat Input)</div>
-      <div id="sl-load-val" style="font-size:14px;font-weight:bold;color:#4fc3f7">75%</div>
+    <div class="card card--tight">
+      <div class="label">Engine cross-section</div>
+      <canvas id="engCanvas" width="243" height="435"></canvas>
     </div>
-    <input type="range" id="sl-load" min="10" max="100" value="75" oninput="setLoad(this.value)">
-    <div id="sl-load-sub" style="font-size:10px;color:#4a7aaa;margin-top:3px">Q_in ≈ 45 kW</div>
-  </div>
 
-  <div class="card" id="sl-cool-card">
-    <div style="display:flex;justify-content:space-between;margin-bottom:5px">
-      <div class="label" style="margin:0">냉각 시스템 가동률</div>
-      <div id="sl-cool-val" style="font-size:14px;font-weight:bold;color:#4caf50">100%</div>
+    <div class="row">
+      <button id="btn-run" class="btn-main" onclick="toggleRun()">▶ START</button>
+      <button class="btn-reset" onclick="resetSim()">↺</button>
     </div>
-    <input type="range" id="sl-cool" min="0" max="100" value="100" oninput="setCool(this.value)" style="accent-color:#4caf50">
-    <div id="sl-cool-sub" style="font-size:10px;color:#4a7aaa;margin-top:3px">Q_out ≈ 0 kW</div>
-  </div>
 
-  <div class="card">
-    <div class="label">PHYSICS READOUT</div>
-    <div style="line-height:2;font-size:12px">
-      <div><span style="color:#6a9aff">Q_in   </span><span id="pr-qin" style="color:#6a9aff">0 kW</span></div>
-      <div><span style="color:#6affa8">Q_out  </span><span id="pr-qout" style="color:#6affa8">0 kW</span></div>
-      <div><span style="color:#4caf50">ΔQ     </span><span id="pr-dq" style="color:#4caf50">0 kW</span></div>
-      <div><span style="color:#4caf50">dT/dt  </span><span id="pr-dtdt" style="color:#4caf50">0.000 °C/s</span></div>
+    <div class="row row--tight">
+      <button class="speed-btn is-active" id="spd-1" onclick="setSpeed(1)">1×</button>
+      <button class="speed-btn"           id="spd-2" onclick="setSpeed(2)">2×</button>
+      <button class="speed-btn"           id="spd-4" onclick="setSpeed(4)">4×</button>
     </div>
-  </div>
 
-</div>
-
-<!-- ═══ COL2: GAUGES + CHART + CASCADE + LOG ═══ -->
-<div style="display:flex;flex-direction:column;gap:8px">
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div class="card" id="g-temp">
-      <div class="label">엔진 온도</div>
-      <div class="big-val" id="gv-temp" style="color:#4caf50">25.0<span style="font-size:13px;opacity:.6"> °C</span></div>
-      <div class="bar-bg"><div class="bar-fill" id="gb-temp" style="width:0%;background:#4caf50"></div></div>
+    <div class="card" id="sl-load-card">
+      <div class="slider-head">
+        <div class="label" style="margin:0">엔진 부하 (Heat Input)</div>
+        <div id="sl-load-val" class="slider-val">75%</div>
+      </div>
+      <input type="range" id="sl-load" min="10" max="100" value="75" oninput="setLoad(this.value)">
+      <div id="sl-load-sub" class="slider-sub">Q_in ≈ 45 kW</div>
     </div>
-    <div class="card" id="g-eff">
-      <div class="label">열 효율</div>
-      <div class="big-val" id="gv-eff" style="color:#4caf50">72<span style="font-size:13px;opacity:.6"> %</span></div>
-      <div class="bar-bg"><div class="bar-fill" id="gb-eff" style="width:72%;background:#4caf50"></div></div>
-    </div>
-    <div class="card" id="g-fri">
-      <div class="label">마찰 부하</div>
-      <div class="big-val" id="gv-fri" style="color:#4caf50">0<span style="font-size:13px;opacity:.6"> %</span></div>
-      <div class="bar-bg"><div class="bar-fill" id="gb-fri" style="width:0%;background:#4caf50"></div></div>
-    </div>
-    <div class="card" id="g-cool">
-      <div class="label">냉각수 상태</div>
-      <div id="gv-cool" style="font-size:17px;font-weight:bold;color:#4caf50;letter-spacing:1px">■ NORMAL</div>
-      <div id="gv-coolpct" style="font-size:10px;color:#4a7aaa;margin-top:4px">냉각 효율: 100%</div>
-      <div style="font-size:10px;color:#4a7aaa">비등점 107°C~170°C</div>
-    </div>
-  </div>
 
-  <div class="card">
-    <div class="label">TEMPERATURE vs TIME</div>
-    <canvas id="chartCanvas" width="540" height="220"></canvas>
-  </div>
+    <div class="card" id="sl-cool-card">
+      <div class="slider-head">
+        <div class="label" style="margin:0">냉각 시스템 가동률</div>
+        <div id="sl-cool-val" class="slider-val" style="color:var(--c-success)">100%</div>
+      </div>
+      <input type="range" id="sl-cool" min="0" max="100" value="100" oninput="setCool(this.value)">
+      <div id="sl-cool-sub" class="slider-sub">Q_out ≈ 0 kW</div>
+    </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
     <div class="card">
-      <div class="label">FAILURE CASCADE</div>
-      <div id="fc-1" style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #0a1020">
-        <span style="font-size:11px;color:#3a5a8a">○ 냉각수 비등</span>
-        <span style="font-size:11px;color:#3a5a8a">107°C</span>
+      <div class="label">Physics readout</div>
+      <div class="readout">
+        <div><span class="k" style="color:var(--c-qin)">Q_in</span><span id="pr-qin"  style="color:var(--c-qin)">0 kW</span></div>
+        <div><span class="k" style="color:var(--c-qout)">Q_out</span><span id="pr-qout" style="color:var(--c-qout)">0 kW</span></div>
+        <div><span class="k">ΔQ</span><span id="pr-dq">0 kW</span></div>
+        <div><span class="k">dT/dt</span><span id="pr-dtdt">0.000 °C/s</span></div>
       </div>
-      <div id="fc-2" style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #0a1020">
-        <span style="font-size:11px;color:#3a5a8a">○ 오일 열화</span>
-        <span style="font-size:11px;color:#3a5a8a">130°C</span>
+    </div>
+
+  </div>
+
+  <!-- ═══ COLUMN 2 — GAUGES + CHART + CASCADE + LOG ══════════════════════ -->
+  <div class="col">
+
+    <div class="gauges">
+      <div class="card" id="g-temp">
+        <div class="label">엔진 온도</div>
+        <div class="big-val" id="gv-temp">25.0<span class="unit"> °C</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="gb-temp" style="width:0%"></div></div>
       </div>
-      <div id="fc-3" style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #0a1020">
-        <span style="font-size:11px;color:#3a5a8a">○ 가스켓 파손</span>
-        <span style="font-size:11px;color:#3a5a8a">150°C</span>
+      <div class="card" id="g-eff">
+        <div class="label">열 효율</div>
+        <div class="big-val" id="gv-eff">72<span class="unit"> %</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="gb-eff" style="width:72%"></div></div>
       </div>
-      <div id="fc-4" style="display:flex;justify-content:space-between;padding:5px 0">
-        <span style="font-size:11px;color:#3a5a8a">○ 피스톤 고착</span>
-        <span style="font-size:11px;color:#3a5a8a">200°C</span>
+      <div class="card" id="g-fri">
+        <div class="label">마찰 부하</div>
+        <div class="big-val" id="gv-fri">0<span class="unit"> %</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="gb-fri" style="width:0%"></div></div>
+      </div>
+      <div class="card" id="g-cool">
+        <div class="label">냉각수 상태</div>
+        <div id="gv-cool" style="font-size:17px;font-weight:bold;letter-spacing:1px;color:var(--c-success)">■ NORMAL</div>
+        <div id="gv-coolpct" class="note">냉각 효율: 100%</div>
+        <div class="note">비등점 107°C~170°C</div>
       </div>
     </div>
 
     <div class="card">
-      <div class="label">SYSTEM LOG</div>
-      <div id="evtlog"><div style="font-size:11px;color:#3a5a8a;font-style:italic">정상 작동 중...</div></div>
+      <div class="label">Temperature vs time</div>
+      <canvas id="chartCanvas" width="540" height="220"></canvas>
     </div>
-  </div>
 
-</div>
+    <div class="gauges">
+      <div class="card">
+        <div class="label">Failure cascade</div>
+        <div class="fc-row" id="fc-1"></div>
+        <div class="fc-row" id="fc-2"></div>
+        <div class="fc-row" id="fc-3"></div>
+        <div class="fc-row" id="fc-4"></div>
+      </div>
+
+      <div class="card">
+        <div class="label">System log</div>
+        <div id="evtlog"><div class="muted">정상 작동 중...</div></div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <script>
-// PHYSICS CONSTANTS
-const THERMAL_MASS   = 36000; // J/K  (≈72 kg cast iron, Cp≈500 J/kg·K)
-const MAX_QIN        = 60000; // W    heat released by combustion at 100% load
-const MAX_QOUT       = 80000; // W    radiator capacity at 100% cooling
-const AMBIENT        = 25;    // °C
-const DT             = 0.1;   // s per physics step
-const THERMOSTAT_OPEN = 82;   // °C  thermostat begins to open
-const THERMOSTAT_FULL = 95;   // °C  thermostat fully open
+"use strict";
 
-// HiDPI canvas scaling
+const $ = id => document.getElementById(id);
+
+/* ── PHYSICS CONSTANTS ──────────────────────────────────────────────────── */
+const THERMAL_MASS    = 36000; // J/K  (≈72 kg cast iron, Cp ≈ 500 J/kg·K)
+const MAX_QIN         = 60000; // W    combustion heat at 100% load
+const MAX_QOUT        = 80000; // W    radiator capacity at 100% cooling
+const AMBIENT         = 25;    // °C
+const DT              = 0.1;   // s    per physics step
+const THERMOSTAT_OPEN = 82;    // °C   thermostat begins to open
+const THERMOSTAT_FULL = 95;    // °C   thermostat fully open
+
+/* ── THEME PALETTE ──────────────────────────────────────────────────────────
+   Canvas drawing can't use CSS variables directly, so we resolve them once
+   and refresh whenever the OS light/dark preference flips. */
+const PALETTE_VARS = {
+  surface:   '--c-surface',
+  grid:      '--c-grid',
+  border:    '--c-border',
+  accent:    '--c-accent',
+  textFaint: '--c-text-faint',
+  success:   '--c-success',
+  amber:     '--c-amber',
+  warn:      '--c-warn',
+  danger:    '--c-danger',
+  critical:  '--c-critical',
+};
+const C = {};
+
+function refreshPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const key in PALETTE_VARS) C[key] = cs.getPropertyValue(PALETTE_VARS[key]).trim();
+}
+refreshPalette();
+
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  refreshPalette();
+  renderCascade();
+  setCool($('sl-cool').value);   // re-applies cooling colour + alert state
+  redrawDashboard();
+});
+
+/* ── HiDPI CANVAS SCALING ───────────────────────────────────────────────── */
 const DPR = window.devicePixelRatio || 1;
 
 function initCanvas(id, cssW, cssH) {
-  const c = document.getElementById(id);
-  c.width  = cssW * DPR;
-  c.height = cssH * DPR;
+  const c = $(id);
+  c.width        = cssW * DPR;
+  c.height       = cssH * DPR;
   c.style.width  = cssW + 'px';
   c.style.height = cssH + 'px';
   return c;
@@ -178,44 +406,41 @@ function initCanvas(id, cssW, cssH) {
 const chartCanvas = initCanvas('chartCanvas', 540, 220);
 const engCanvas   = initCanvas('engCanvas',   243, 435);
 
-// SIMULATION STATE
+/* ── SIMULATION STATE ───────────────────────────────────────────────────── */
 const S = {
   T: AMBIENT, time: 0,
   loadFrac: 0.75, coolingFrac: 1.0,
   running: false, seized: false,
   coolantBoiling: false, oilDegraded: false, gasketFailed: false,
-  events: [], history: [{t:0, T:AMBIENT}],
+  events: [], history: [{ t: 0, T: AMBIENT }],
   tickCount: 0,
 };
 
-// ── PHYSICS ──────────────────────────────────────────────────────────────────
+/* ── PHYSICS ────────────────────────────────────────────────────────────── */
 
 function calcQin(T, lf, seized) {
   if (seized) return 0;
   let Q = MAX_QIN * lf;
-  // Oil degradation above 130°C raises friction heat by up to 35%
+  // Oil degradation above 130°C raises friction heat by up to 35%.
   if (T >= 130) Q *= 1 + Math.min(0.35, (T - 130) / 70 * 0.35);
   return Q;
 }
 
-// Thermostat-controlled cooling model:
-//   - Below THERMOSTAT_OPEN: only passive surface convection (~30 W/K)
-//   - THERMOSTAT_OPEN→FULL: thermostat progressively opens, radiator flow increases
-//   - Above THERMOSTAT_FULL: full radiator capacity
-//   - Above 107°C: steam bubbles in coolant degrade heat transfer by up to 90%
+// Thermostat-controlled cooling:
+//   < THERMOSTAT_OPEN      → passive surface convection only (~30 W/K)
+//   OPEN → FULL            → thermostat opens, radiator flow ramps up
+//   > THERMOSTAT_FULL      → full radiator capacity
+//   ≥ 107°C                → steam bubbles cut heat transfer by up to 90%
 function calcQout(T, cf) {
-  const dT = Math.max(0, T - AMBIENT);
-  // Passive convection/radiation from engine block surfaces
-  const passive = dT * 30; // ~30 W/K
+  const dT      = Math.max(0, T - AMBIENT);
+  const passive = dT * 30; // ~30 W/K from block surfaces
 
-  // Active radiator cooling gated by thermostat
   let thermoFactor = 0;
   if (T > THERMOSTAT_OPEN) {
     thermoFactor = Math.min(1, (T - THERMOSTAT_OPEN) / (THERMOSTAT_FULL - THERMOSTAT_OPEN));
   }
   let active = MAX_QOUT * cf * thermoFactor;
 
-  // Boiling penalty: steam formation reduces coolant circuit heat transfer
   if (T >= 107) {
     const boilFrac = Math.min(1, (T - 107) / 63);
     active *= (1 - 0.9 * boilFrac);
@@ -224,9 +449,9 @@ function calcQout(T, cf) {
 }
 
 // Mechanical efficiency:
-//   Cold engine (< 60°C): high viscosity, tight clearances → ~72–98%
-//   Optimal range (60–95°C): peak efficiency ~98%
-//   Above 95°C: thermal distortion, then oil/gasket failures reduce it
+//   < 60°C   → cold: high viscosity, tight clearances (~72–98%)
+//   60–95°C  → optimal (~98%)
+//   > 95°C   → thermal distortion, then oil/gasket failures degrade it
 function calcEff(T) {
   if (T < 60) return Math.round(72 + (T - AMBIENT) / (60 - AMBIENT) * 26);
   let e = 98;
@@ -237,14 +462,14 @@ function calcEff(T) {
 }
 
 function statusColor(T, seized) {
-  if (seized || T >= 200) return "#f44336";
-  if (T >= 150) return "#ff5722";
-  if (T >= 130) return "#ff9800";
-  if (T >= 107) return "#ffc107";
-  return "#4caf50";
+  if (seized || T >= 200) return C.critical;
+  if (T >= 150)           return C.danger;
+  if (T >= 130)           return C.warn;
+  if (T >= 107)           return C.amber;
+  return C.success;
 }
 
-// ── SIMULATION LOOP ───────────────────────────────────────────────────────────
+/* ── SIMULATION LOOP ────────────────────────────────────────────────────── */
 
 let simInterval = null;
 let simSpeed    = 1;
@@ -263,29 +488,32 @@ function physicsTick() {
   if (!S.coolantBoiling && S.T >= 107) {
     S.coolantBoiling = true;
     addEvent("warn", "냉각수 비등 시작 — 냉각 효율 급강하");
-    setFC(1, "#ffc107");
+    renderCascade();
   }
   if (!S.oilDegraded && S.T >= 130) {
     S.oilDegraded = true;
     addEvent("warn", "윤활유 열화 — 점도 급감 · 마찰 발열 증가");
-    setFC(2, "#ff9800");
+    renderCascade();
   }
   if (!S.gasketFailed && S.T >= 150) {
     S.gasketFailed = true;
     addEvent("danger", "헤드 가스켓 파손 — 기밀 상실 · 증기 누출");
-    setFC(3, "#ff5722");
+    renderCascade();
   }
   if (!S.seized && S.T >= 200) {
-    S.seized = true; S.running = false;
+    S.seized = true;
+    S.running = false;
     addEvent("critical", "피스톤 고착 (SEIZURE) — 엔진 완전 파손");
-    setFC(4, "#f44336");
-    clearInterval(simInterval); simInterval = null;
-    document.getElementById("btn-run").className = "btn-main seized";
-    document.getElementById("btn-run").textContent = "▶ START";
+    renderCascade();
+    clearInterval(simInterval);
+    simInterval = null;
+    $("btn-run").className = "btn-main is-seized";
+    $("btn-run").textContent = "▶ START";
   }
 
-  if (S.tickCount % 5 === 0)
-    S.history.push({t: S.time, T: parseFloat(S.T.toFixed(1))});
+  if (S.tickCount % 5 === 0) {
+    S.history.push({ t: S.time, T: parseFloat(S.T.toFixed(1)) });
+  }
   if (S.history.length > 400) S.history.shift();
 
   return { qin, qout, dTdt };
@@ -302,91 +530,120 @@ function tick() {
   if (last) updateDashboard(last.qin, last.qout, last.dTdt);
 }
 
+/* ── EVENT LOG ──────────────────────────────────────────────────────────── */
+
 function addEvent(lvl, msg) {
-  S.events.push({t: S.time, lvl, msg});
+  S.events.push({ t: S.time, lvl, msg });
   if (S.events.length > 8) S.events.shift();
   renderEventLog();
 }
 
-function setFC(n, color) {
-  const labels = ["냉각수 비등","오일 열화","가스켓 파손","피스톤 고착"];
-  const temps  = ["107°C","130°C","150°C","200°C"];
-  const el = document.getElementById("fc-"+n);
-  el.innerHTML = `<span style="font-size:11px;color:${color}">▶ ${labels[n-1]}</span><span style="font-size:11px;color:${color}">${temps[n-1]}</span>`;
-}
-
 function renderEventLog() {
-  const el = document.getElementById("evtlog");
+  const el = $("evtlog");
   if (!S.events.length) {
-    el.innerHTML = '<div style="font-size:11px;color:#3a5a8a;font-style:italic">정상 작동 중...</div>';
+    el.innerHTML = '<div class="muted">정상 작동 중...</div>';
     return;
   }
   el.innerHTML = S.events.map(e =>
-    `<div class="evtlog ${e.lvl}"><span style="color:#4a7aaa">[${e.t.toFixed(1)}s] </span>${e.msg}</div>`
+    `<div class="evtlog ${e.lvl}"><span class="evtlog__t">[${e.t.toFixed(1)}s] </span>${e.msg}</div>`
   ).join("");
 }
 
-// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+/* ── FAILURE CASCADE ────────────────────────────────────────────────────── */
+
+const CASCADE = [
+  { label: "냉각수 비등", temp: "107°C", color: () => C.amber,    active: () => S.coolantBoiling },
+  { label: "오일 열화",   temp: "130°C", color: () => C.warn,     active: () => S.oilDegraded },
+  { label: "가스켓 파손", temp: "150°C", color: () => C.danger,   active: () => S.gasketFailed },
+  { label: "피스톤 고착", temp: "200°C", color: () => C.critical, active: () => S.seized },
+];
+
+function renderCascade() {
+  CASCADE.forEach((step, i) => {
+    const on    = step.active();
+    const color = on ? step.color() : C.textFaint;
+    const mark  = on ? "▶" : "○";
+    $("fc-" + (i + 1)).innerHTML =
+      `<span style="color:${color}">${mark} ${step.label}</span>` +
+      `<span style="color:${color}">${step.temp}</span>`;
+  });
+}
+
+/* ── DASHBOARD ──────────────────────────────────────────────────────────── */
 
 function updateDashboard(qin, qout, dTdt) {
-  const T = S.T, col = statusColor(T, S.seized);
+  const T   = S.T;
+  const col = statusColor(T, S.seized);
   const eff = calcEff(T);
   const fri = T >= 130 ? Math.min(100, Math.round((T - 130) / 0.7)) : 0;
 
-  document.getElementById("hdr-temp").style.color = col;
-  document.getElementById("hdr-temp").textContent = T.toFixed(1) + "°C";
-  document.getElementById("hdr-status").style.color = col;
-  document.getElementById("hdr-status").textContent = "■ " + (
-    S.seized  ? "SEIZED"    :
-    T >= 150  ? "가스켓 파손" :
-    T >= 130  ? "오일 열화"  :
-    T >= 107  ? "냉각수 비등" : "정상 운전"
+  $("hdr-temp").style.color   = col;
+  $("hdr-temp").textContent   = T.toFixed(1) + "°C";
+  $("hdr-status").style.color = col;
+  $("hdr-status").textContent = "■ " + (
+    S.seized ? "SEIZED"      :
+    T >= 150 ? "가스켓 파손" :
+    T >= 130 ? "오일 열화"   :
+    T >= 107 ? "냉각수 비등" : "정상 운전"
   );
-  document.getElementById("hdr-time").textContent = "t = " + S.time.toFixed(1) + " s";
+  $("hdr-time").textContent = "t = " + S.time.toFixed(1) + " s";
 
   const gTempPct = Math.min(100, (T - AMBIENT) / (200 - AMBIENT) * 100);
   setGauge("temp", T.toFixed(1), "°C", gTempPct, col, T >= 107);
-  const effCol = eff > 65 ? "#4caf50" : eff > 35 ? "#ff9800" : "#f44336";
-  setGauge("eff", eff + "", "%", eff, effCol, eff < 65);
-  const friCol = fri > 60 ? "#f44336" : fri > 20 ? "#ff9800" : "#4caf50";
-  setGauge("fri", fri + "", "%", fri, friCol, fri > 20);
 
-  const coolCol   = T >= 170 ? "#f44336" : T >= 107 ? "#ff9800" : "#4caf50";
+  const effCol = eff > 65 ? C.success : eff > 35 ? C.warn : C.critical;
+  setGauge("eff", String(eff), "%", eff, effCol, eff < 65);
+
+  const friCol = fri > 60 ? C.critical : fri > 20 ? C.warn : C.success;
+  setGauge("fri", String(fri), "%", fri, friCol, fri > 20);
+
+  const coolCol   = T >= 170 ? C.critical : T >= 107 ? C.warn : C.success;
   const coolLabel = T >= 170 ? "■ STEAM"  : T >= 107 ? "■ BOILING" : "■ NORMAL";
-  const coolEff   = T >= 107 ? Math.max(0, Math.round((1 - Math.min(1, (T-107)/63) * 0.9) * 100)) : 100;
-  document.getElementById("gv-cool").style.color = coolCol;
-  document.getElementById("gv-cool").textContent = coolLabel;
-  document.getElementById("gv-coolpct").textContent = "냉각 효율: " + coolEff + "%";
-  document.getElementById("g-cool").className = "card" + (T >= 107 ? " alert" : "");
+  const coolEff   = T >= 107 ? Math.max(0, Math.round((1 - Math.min(1, (T - 107) / 63) * 0.9) * 100)) : 100;
+  $("gv-cool").style.color     = coolCol;
+  $("gv-cool").textContent     = coolLabel;
+  $("gv-coolpct").textContent  = "냉각 효율: " + coolEff + "%";
+  $("g-cool").className         = "card" + (T >= 107 ? " is-alert" : "");
 
-  const qinKw = Math.round(qin / 1000), qoutKw = Math.round(qout / 1000), dq = qinKw - qoutKw;
-  document.getElementById("pr-qin").textContent  = qinKw  + " kW";
-  document.getElementById("pr-qout").textContent = qoutKw + " kW";
-  document.getElementById("pr-dq").style.color   = dq > 0 ? "#f44336" : "#4caf50";
-  document.getElementById("pr-dq").textContent   = (dq > 0 ? "+" : "") + dq + " kW";
-  document.getElementById("pr-dtdt").style.color = dTdt > 0 ? "#f44336" : "#4caf50";
-  document.getElementById("pr-dtdt").textContent = (dTdt > 0 ? "+" : "") + dTdt.toFixed(3) + " °C/s";
+  const qinKw  = Math.round(qin  / 1000);
+  const qoutKw = Math.round(qout / 1000);
+  const dq     = qinKw - qoutKw;
+  $("pr-qin").textContent   = qinKw  + " kW";
+  $("pr-qout").textContent  = qoutKw + " kW";
+  $("pr-dq").style.color    = dq   > 0 ? C.critical : C.success;
+  $("pr-dq").textContent    = (dq   > 0 ? "+" : "") + dq + " kW";
+  $("pr-dtdt").style.color  = dTdt > 0 ? C.critical : C.success;
+  $("pr-dtdt").textContent  = (dTdt > 0 ? "+" : "") + dTdt.toFixed(3) + " °C/s";
 
-  document.getElementById("sl-load-sub").textContent = "Q_in ≈ "  + Math.round(calcQin(T, S.loadFrac, S.seized) / 1000) + " kW";
-  document.getElementById("sl-cool-sub").textContent = "Q_out ≈ " + Math.round(calcQout(T, S.coolingFrac) / 1000) + " kW";
+  $("sl-load-sub").textContent = "Q_in ≈ "  + Math.round(calcQin(T, S.loadFrac, S.seized) / 1000) + " kW";
+  $("sl-cool-sub").textContent = "Q_out ≈ " + Math.round(calcQout(T, S.coolingFrac) / 1000) + " kW";
 
   drawChart();
 }
 
 function setGauge(id, numStr, unit, pct, color, alert) {
-  document.getElementById("gv-"+id).style.color = color;
-  document.getElementById("gv-"+id).innerHTML   = numStr + `<span style="font-size:13px;opacity:.6"> ${unit}</span>`;
-  document.getElementById("gb-"+id).style.width      = Math.max(0, Math.min(100, pct)) + "%";
-  document.getElementById("gb-"+id).style.background = color;
-  document.getElementById("g-"+id).className = "card" + (alert ? " alert" : "");
+  $("gv-" + id).style.color   = color;
+  $("gv-" + id).innerHTML     = numStr + `<span class="unit"> ${unit}</span>`;
+  $("gb-" + id).style.width      = Math.max(0, Math.min(100, pct)) + "%";
+  $("gb-" + id).style.background = color;
+  $("g-"  + id).className = "card" + (alert ? " is-alert" : "");
 }
 
-// ── CHART ─────────────────────────────────────────────────────────────────────
+// Repaint the dashboard with the current state (used when paused / theme flip).
+function redrawDashboard() {
+  updateDashboard(
+    calcQin(S.T, S.loadFrac, S.seized),
+    calcQout(S.T, S.coolingFrac),
+    0
+  );
+}
+
+/* ── CHART ──────────────────────────────────────────────────────────────── */
 
 function drawChart() {
   const ctx  = chartCanvas.getContext("2d");
   const cssW = 540, cssH = 220;
-  const pad  = {t:10, r:10, b:24, l:38};
+  const pad  = { t: 10, r: 10, b: 24, l: 38 };
 
   ctx.save();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -395,69 +652,91 @@ function drawChart() {
   const cH = cssH - pad.t - pad.b;
 
   ctx.clearRect(0, 0, cssW, cssH);
-  ctx.fillStyle = "#0a0e1c";
+  ctx.fillStyle = C.surface;            // blend the plot into its card
   ctx.fillRect(0, 0, cssW, cssH);
 
   const minT    = 20, maxT = 230;
   const minTime = S.history.length > 1 ? S.history[0].t : 0;
   const maxTime = Math.max(S.history[S.history.length - 1].t, 30);
 
-  function cx(t) { return pad.l + (t - minTime) / (maxTime - minTime) * cW; }
-  function cy(T) { return pad.t + (1 - (T - minT) / (maxT - minT)) * cH; }
+  const cx = t => pad.l + (t - minTime) / (maxTime - minTime) * cW;
+  const cy = T => pad.t + (1 - (T - minT) / (maxT - minT)) * cH;
 
-  // Grid
-  ctx.strokeStyle = "#0d1428"; ctx.lineWidth = 0.5;
+  // Horizontal grid
+  ctx.strokeStyle = C.grid;
+  ctx.lineWidth   = 0.5;
   [50, 100, 150, 200].forEach(t => {
-    ctx.beginPath(); ctx.moveTo(pad.l, cy(t)); ctx.lineTo(pad.l + cW, cy(t)); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pad.l, cy(t));
+    ctx.lineTo(pad.l + cW, cy(t));
+    ctx.stroke();
   });
 
-  // Reference lines
-  const refs = [{T:107,c:"#ffc107"},{T:130,c:"#ff9800"},{T:150,c:"#ff5722"},{T:200,c:"#f44336"}];
+  // Failure-threshold reference lines
+  const refs = [
+    { T: 107, c: C.amber },
+    { T: 130, c: C.warn },
+    { T: 150, c: C.danger },
+    { T: 200, c: C.critical },
+  ];
   refs.forEach(r => {
-    ctx.strokeStyle = r.c + "88"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
-    ctx.beginPath(); ctx.moveTo(pad.l, cy(r.T)); ctx.lineTo(pad.l + cW, cy(r.T)); ctx.stroke();
-    ctx.fillStyle   = r.c;
-    ctx.font        = "11px Courier New";
-    ctx.textAlign   = "right";
+    ctx.strokeStyle = r.c + "88";
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(pad.l, cy(r.T));
+    ctx.lineTo(pad.l + cW, cy(r.T));
+    ctx.stroke();
+    ctx.fillStyle = r.c;
+    ctx.font      = "11px 'Courier New', monospace";
+    ctx.textAlign = "right";
     ctx.fillText(r.T + "°C", pad.l + cW, cy(r.T) - 3);
   });
   ctx.setLineDash([]);
 
-  // Axes
-  ctx.strokeStyle = "#141e38"; ctx.lineWidth = 1;
+  // Plot frame
+  ctx.strokeStyle = C.border;
+  ctx.lineWidth   = 1;
   ctx.strokeRect(pad.l, pad.t, cW, cH);
 
   // Axis labels
-  ctx.fillStyle = "#6a9acc"; ctx.font = "11px Courier New"; ctx.textAlign = "right";
-  [50, 100, 150, 200].forEach(v => {
-    ctx.fillText(v, pad.l - 5, cy(v) + 4);
-  });
+  ctx.fillStyle = C.accent;
+  ctx.font      = "11px 'Courier New', monospace";
+  ctx.textAlign = "right";
+  [50, 100, 150, 200].forEach(v => ctx.fillText(v, pad.l - 5, cy(v) + 4));
+
   ctx.textAlign = "center";
   if (S.history.length > 1) {
     const step = Math.ceil((maxTime - minTime) / 5);
-    for (let t = Math.ceil(minTime); t <= maxTime; t += step)
+    for (let t = Math.ceil(minTime); t <= maxTime; t += step) {
       ctx.fillText(t + "s", cx(t), pad.t + cH + 16);
+    }
   }
 
-  // Temperature line
+  // Temperature trace
   if (S.history.length > 1) {
     const col = statusColor(S.T, S.seized);
-    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    ctx.strokeStyle = col;
+    ctx.lineWidth   = 2;
     ctx.beginPath();
     S.history.forEach((p, i) => {
       const x = cx(p.t), y = cy(p.T);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      if (i === 0) ctx.moveTo(x, y);
+      else         ctx.lineTo(x, y);
     });
     ctx.stroke();
+
     const last = S.history[S.history.length - 1];
-    ctx.beginPath(); ctx.arc(cx(last.t), cy(last.T), 4, 0, Math.PI * 2);
-    ctx.fillStyle = col; ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx(last.t), cy(last.T), 4, 0, Math.PI * 2);
+    ctx.fillStyle = col;
+    ctx.fill();
   }
 
   ctx.restore();
 }
 
-// ── ENGINE ANIMATION ──────────────────────────────────────────────────────────
+/* ── ENGINE ANIMATION ───────────────────────────────────────────────────── */
 
 let pistonPhase = 0;
 let steamTime   = 0;
@@ -465,7 +744,6 @@ let steamTime   = 0;
 function drawEngine() {
   const ctx = engCanvas.getContext("2d");
 
-  // Clear physical canvas, then apply drawing transform
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, engCanvas.width, engCanvas.height);
 
@@ -474,7 +752,6 @@ function drawEngine() {
 
   const W = 162, H = 290;
   const T = S.T, seized = S.seized;
-  const col = statusColor(T, seized);
 
   let blockClr, accentClr, jacketClr;
   if      (T < 80)  { blockClr = "#0d2a42"; accentClr = "#4fc3f7"; jacketClr = "#1565C0"; }
@@ -490,8 +767,7 @@ function drawEngine() {
   const sinP = Math.sin(pistonPhase);
   const cosP = Math.cos(pistonPhase);
 
-  const CX = 81, CRANK_CY = 220;
-  const CRANK_R = 14;
+  const CX = 81, CRANK_CY = 220, CRANK_R = 14;
   const crankPX = CX + CRANK_R * sinP;
   const crankPY = CRANK_CY - CRANK_R * cosP;
   const BORE_X = 42, BORE_Y = 62, BORE_W = 78, BORE_H = 120;
@@ -499,7 +775,8 @@ function drawEngine() {
   const pistRectY = BORE_Y + 2 + pistonY * (BORE_H - PIST_H - 4);
   const pistPinY  = pistRectY + PIST_H;
 
-  ctx.fillStyle = "#060a14";
+  // Background — matches the surrounding card so there is no dark rectangle.
+  ctx.fillStyle = C.surface;
   ctx.fillRect(0, 0, W, H);
 
   // Coolant jacket
@@ -514,27 +791,28 @@ function drawEngine() {
   ctx.fillStyle = blockClr;
   ctx.beginPath(); ctx.roundRect(12, 30, 138, 32, 4); ctx.fill();
   for (let i = 0; i < 4; i++) {
-    ctx.fillStyle = blockClr; ctx.globalAlpha = 0.8;
-    ctx.beginPath(); ctx.roundRect(18 + i*32, 16, 20, 16, 2); ctx.fill();
+    ctx.fillStyle = blockClr;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath(); ctx.roundRect(18 + i * 32, 16, 20, 16, 2); ctx.fill();
     ctx.globalAlpha = 1;
   }
 
-  // Gasket line
+  // Head gasket
   ctx.strokeStyle = S.gasketFailed ? "#ff6030" : "#162040";
   ctx.lineWidth   = S.gasketFailed ? 2.5 : 1.5;
   if (S.gasketFailed) ctx.setLineDash([5, 3]);
   ctx.beginPath(); ctx.moveTo(12, 62); ctx.lineTo(150, 62); ctx.stroke();
   ctx.setLineDash([]);
 
-  // Steam particles
+  // Steam escaping a blown gasket
   if (S.gasketFailed) {
     steamTime++;
     for (let i = 0; i < 7; i++) {
-      const px = BORE_X + ((steamTime*7 + i*31) % BORE_W);
-      const py = 62 - ((steamTime*2 + i*11) % 28);
-      const op = Math.max(0, 0.15 + 0.5 * Math.sin(steamTime*0.25 + i*1.1));
+      const px = BORE_X + ((steamTime * 7 + i * 31) % BORE_W);
+      const py = 62 - ((steamTime * 2 + i * 11) % 28);
+      const op = Math.max(0, 0.15 + 0.5 * Math.sin(steamTime * 0.25 + i * 1.1));
       ctx.beginPath();
-      ctx.arc(px, py, 1.5 + (i%3)*0.8, 0, Math.PI*2);
+      ctx.arc(px, py, 1.5 + (i % 3) * 0.8, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(144,202,249,${op})`;
       ctx.fill();
     }
@@ -543,18 +821,19 @@ function drawEngine() {
   // Cylinder bore
   ctx.fillStyle = "#050810";
   ctx.fillRect(BORE_X, BORE_Y, BORE_W, BORE_H);
-  ctx.strokeStyle = accentClr; ctx.lineWidth = 1.5;
+  ctx.strokeStyle = accentClr;
+  ctx.lineWidth   = 1.5;
   ctx.strokeRect(BORE_X, BORE_Y, BORE_W, BORE_H);
 
-  // Spark plug
+  // Spark plug + ignition flash
   ctx.fillStyle = "#666"; ctx.fillRect(78, 22, 6, 12);
   ctx.fillStyle = "#555"; ctx.beginPath(); ctx.roundRect(75, 30, 12, 6, 1); ctx.fill();
   ctx.strokeStyle = "#444"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(81, 36); ctx.lineTo(81, 62); ctx.stroke();
   if (S.running && !seized && pistonY < 0.08) {
-    ctx.beginPath(); ctx.arc(81, 63, 4, 0, Math.PI*2);
+    ctx.beginPath(); ctx.arc(81, 63, 4, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,0,0.9)"; ctx.fill();
-    ctx.beginPath(); ctx.arc(81, 63, 7, 0, Math.PI*2);
+    ctx.beginPath(); ctx.arc(81, 63, 7, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,176,0.3)"; ctx.fill();
   }
 
@@ -570,19 +849,24 @@ function drawEngine() {
   ctx.beginPath(); ctx.roundRect(12, 182, 138, 72, 3); ctx.fill();
   ctx.strokeStyle = "#040710"; ctx.lineWidth = 2; ctx.globalAlpha = 0.7;
   for (let i = 0; i < 3; i++) {
-    ctx.beginPath(); ctx.moveTo(38 + i*30, 182); ctx.lineTo(38 + i*30, 252); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(38 + i * 30, 182); ctx.lineTo(38 + i * 30, 252); ctx.stroke();
   }
   ctx.globalAlpha = 1;
 
-  // Piston body
+  // Piston
   ctx.fillStyle = seized ? "#252525" : accentClr;
-  ctx.beginPath(); ctx.roundRect(BORE_X+3, pistRectY, BORE_W-6, PIST_H, 3); ctx.fill();
-  ctx.strokeStyle = seized ? "#3a3a3a" : blockClr; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.roundRect(BORE_X+3, pistRectY, BORE_W-6, PIST_H, 3); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(BORE_X + 3, pistRectY, BORE_W - 6, PIST_H, 3); ctx.fill();
+  ctx.strokeStyle = seized ? "#3a3a3a" : blockClr;
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath(); ctx.roundRect(BORE_X + 3, pistRectY, BORE_W - 6, PIST_H, 3); ctx.stroke();
   if (!seized) {
-    ctx.strokeStyle = blockClr + "bb"; ctx.lineWidth = 1;
+    ctx.strokeStyle = blockClr + "bb";
+    ctx.lineWidth   = 1;
     [5, 12, 20].forEach(off => {
-      ctx.beginPath(); ctx.moveTo(BORE_X+5, pistRectY+off); ctx.lineTo(BORE_X+BORE_W-5, pistRectY+off); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(BORE_X + 5, pistRectY + off);
+      ctx.lineTo(BORE_X + BORE_W - 5, pistRectY + off);
+      ctx.stroke();
     });
   }
 
@@ -594,23 +878,24 @@ function drawEngine() {
 
   // Crankshaft
   ctx.strokeStyle = "#111e36"; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.arc(CX, CRANK_CY, CRANK_R+10, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(CX, CRANK_CY, CRANK_R + 10, 0, Math.PI * 2); ctx.stroke();
   ctx.strokeStyle = "#1e2d48"; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(CX, CRANK_CY); ctx.lineTo(crankPX, crankPY); ctx.stroke();
   ctx.fillStyle = "#2a3a58";
-  ctx.beginPath(); ctx.arc(crankPX, crankPY, 7, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(crankPX, crankPY, 7, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = "#3a4a68"; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(crankPX, crankPY, 7, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(crankPX, crankPY, 7, 0, Math.PI * 2); ctx.stroke();
   ctx.fillStyle = "#1e2d48";
-  ctx.beginPath(); ctx.arc(CX, CRANK_CY, 8, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(CX, CRANK_CY, 8, 0, Math.PI * 2); ctx.fill();
 
   // Oil pan
-  ctx.fillStyle = "#050810"; ctx.beginPath(); ctx.roundRect(12, 252, 138, 24, 3); ctx.fill();
+  ctx.fillStyle = "#050810";
+  ctx.beginPath(); ctx.roundRect(12, 252, 138, 24, 3); ctx.fill();
   ctx.strokeStyle = "#0d1428"; ctx.lineWidth = 1; ctx.stroke();
   ctx.fillStyle = S.oilDegraded ? "#280808" : "#0a1420";
   ctx.beginPath(); ctx.roundRect(16, 256, 130, 16, 2); ctx.fill();
   ctx.fillStyle = S.oilDegraded ? "#ef5350" : "#1e3a5a";
-  ctx.font = "7px Courier New"; ctx.textAlign = "center";
+  ctx.font = "7px 'Courier New', monospace"; ctx.textAlign = "center";
   ctx.fillText(S.oilDegraded ? "OIL DEGRADED" : "OIL LEVEL OK", CX, 267);
 
   // SEIZED overlay
@@ -623,11 +908,11 @@ function drawEngine() {
     ctx.globalAlpha = 1;
     ctx.fillStyle = "#0c0808";
     ctx.beginPath(); ctx.roundRect(30, 126, 102, 30, 4); ctx.fill();
-    ctx.fillStyle = "#f44336"; ctx.font = "bold 14px Courier New"; ctx.textAlign = "center";
+    ctx.fillStyle = "#f44336"; ctx.font = "bold 14px 'Courier New', monospace"; ctx.textAlign = "center";
     ctx.fillText("SEIZED", CX, 146);
   }
 
-  // Temperature glow
+  // Heat glow
   if (T > 95) {
     const glowClr = T > 165 ? "#cc2200" : T > 130 ? "#cc6600" : "#ccaa00";
     const op = Math.min(0.13, (T - 95) / 700);
@@ -639,7 +924,7 @@ function drawEngine() {
   ctx.restore();
 }
 
-// ── RAF LOOP ──────────────────────────────────────────────────────────────────
+/* ── RENDER LOOP ────────────────────────────────────────────────────────── */
 
 function rafLoop() {
   drawEngine();
@@ -647,77 +932,75 @@ function rafLoop() {
 }
 requestAnimationFrame(rafLoop);
 
-// ── CONTROLS ──────────────────────────────────────────────────────────────────
+/* ── CONTROLS ───────────────────────────────────────────────────────────── */
 
 function setSpeed(s) {
   simSpeed = s;
-  [1, 2, 4].forEach(n => {
-    document.getElementById('spd-' + n).classList.toggle('active', n === s);
-  });
+  [1, 2, 4].forEach(n => $('spd-' + n).classList.toggle('is-active', n === s));
 }
 
 function toggleRun() {
   if (S.seized) return;
   if (S.running) {
     S.running = false;
-    clearInterval(simInterval); simInterval = null;
-    document.getElementById("btn-run").className = "btn-main";
-    document.getElementById("btn-run").textContent = "▶ START";
+    clearInterval(simInterval);
+    simInterval = null;
+    $("btn-run").className   = "btn-main";
+    $("btn-run").textContent = "▶ START";
   } else {
     S.running = true;
     simInterval = setInterval(tick, 100);
-    document.getElementById("btn-run").className = "btn-main running";
-    document.getElementById("btn-run").textContent = "⏸ STOP";
+    $("btn-run").className   = "btn-main is-running";
+    $("btn-run").textContent = "⏸ STOP";
   }
 }
 
 function resetSim() {
-  clearInterval(simInterval); simInterval = null;
-  pistonPhase = 0; steamTime = 0;
+  clearInterval(simInterval);
+  simInterval = null;
+  pistonPhase = 0;
+  steamTime   = 0;
   Object.assign(S, {
     T: AMBIENT, time: 0, loadFrac: 0.75, coolingFrac: 1.0,
     running: false, seized: false,
     coolantBoiling: false, oilDegraded: false, gasketFailed: false,
-    events: [], history: [{t:0, T:AMBIENT}], tickCount: 0,
+    events: [], history: [{ t: 0, T: AMBIENT }], tickCount: 0,
   });
-  document.getElementById("btn-run").className = "btn-main";
-  document.getElementById("btn-run").textContent = "▶ START";
-  document.getElementById("sl-load").value  = 75;
-  document.getElementById("sl-cool").value  = 100;
-  document.getElementById("sl-load-val").textContent = "75%";
-  document.getElementById("sl-cool-val").textContent = "100%";
-  document.getElementById("sl-cool-val").style.color = "#4caf50";
+  $("btn-run").className   = "btn-main";
+  $("btn-run").textContent = "▶ START";
+  $("sl-load").value = 75;
+  $("sl-cool").value = 100;
+  $("sl-load-val").textContent = "75%";
+  $("sl-cool-val").textContent = "100%";
+  $("sl-cool-val").style.color = C.success;
+  $("sl-cool-card").className  = "card";
+  $("sl-cool").style.accentColor = "";
   setSpeed(1);
-  ["fc-1","fc-2","fc-3","fc-4"].forEach((id, i) => {
-    const labels = ["냉각수 비등","오일 열화","가스켓 파손","피스톤 고착"];
-    const temps  = ["107°C","130°C","150°C","200°C"];
-    document.getElementById(id).innerHTML =
-      `<span style="font-size:11px;color:#3a5a8a">○ ${labels[i]}</span><span style="font-size:11px;color:#3a5a8a">${temps[i]}</span>`;
-  });
+  renderCascade();
   renderEventLog();
-  updateDashboard(0, calcQout(AMBIENT, 1), 0);
+  redrawDashboard();
 }
 
 function setLoad(v) {
   S.loadFrac = v / 100;
-  document.getElementById("sl-load-val").textContent = v + "%";
-  if (!S.running) updateDashboard(calcQin(S.T, S.loadFrac, S.seized), calcQout(S.T, S.coolingFrac), 0);
+  $("sl-load-val").textContent = v + "%";
+  if (!S.running) redrawDashboard();
 }
 
 function setCool(v) {
   S.coolingFrac = v / 100;
-  const col = v < 30 ? "#f44336" : v < 60 ? "#ff9800" : "#4caf50";
-  document.getElementById("sl-cool-val").textContent = v + "%";
-  document.getElementById("sl-cool-val").style.color = col;
-  document.getElementById("sl-cool").style.accentColor = col;
-  document.getElementById("sl-cool-card").className = "card" + (v < 50 ? " alert" : "");
-  if (!S.running) updateDashboard(calcQin(S.T, S.loadFrac, S.seized), calcQout(S.T, S.coolingFrac), 0);
+  const col = v < 30 ? C.critical : v < 60 ? C.warn : C.success;
+  $("sl-cool-val").textContent   = v + "%";
+  $("sl-cool-val").style.color   = col;
+  $("sl-cool").style.accentColor = col;
+  $("sl-cool-card").className     = "card" + (v < 50 ? " is-alert" : "");
+  if (!S.running) redrawDashboard();
 }
 
-// Initial render
-updateDashboard(0, calcQout(AMBIENT, 1), 0);
+/* ── INITIAL RENDER ─────────────────────────────────────────────────────── */
+renderCascade();
 renderEventLog();
-drawChart();
+redrawDashboard();
 </script>
 </body>
 </html>
