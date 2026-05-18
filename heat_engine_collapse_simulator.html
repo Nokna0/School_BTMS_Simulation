@@ -120,6 +120,8 @@ canvas {
   margin: 0 auto;
   background: var(--c-surface);
   border-radius: 4px;
+  max-width: 100%;   /* 타일보다 커지지 않게 — 좁은 창에서 자동 축소 */
+  height: auto;      /* 폭이 줄면 비율 유지하며 높이도 축소 */
 }
 
 /* ─── HEADER ──────────────────────────────────────────────────────────── */
@@ -127,6 +129,8 @@ canvas {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--c-grid);
   padding-bottom: 12px;
   margin-bottom: 14px;
@@ -261,6 +265,15 @@ input[type=range] {
 .evtlog.warn          { color: var(--c-warn);     background: var(--c-warn-bg);     border-left: 2px solid var(--c-warn); }
 .evtlog.danger        { color: var(--c-danger);   background: var(--c-danger-bg);   border-left: 2px solid var(--c-danger); }
 .evtlog.critical      { color: var(--c-critical); background: var(--c-critical-bg); border-left: 2px solid var(--c-critical); }
+
+/* ─── RESPONSIVE — 창 크기에 따른 유동적 타일 조절 ──────────────────────────
+   fast_charging_simulation.html과 동일한 720px 분기.
+   좁은 창에서는 2열 레이아웃과 게이지 쌍을 1열로 재배치하고,
+   캔버스는 max-width:100%로 타일 폭에 맞춰 자동 축소된다. */
+@media (max-width: 720px) {
+  .grid   { grid-template-columns: 1fr; }   /* 엔진+제어 | 대시보드 → 세로 적층 */
+  .gauges { grid-template-columns: 1fr; }   /* 게이지/캐스케이드/로그 2열 → 1열 */
+}
 </style>
 </head>
 <body>
@@ -463,7 +476,7 @@ function initCanvas(id, cssW, cssH) {
   c.width        = cssW * DPR;
   c.height       = cssH * DPR;
   c.style.width  = cssW + 'px';
-  c.style.height = cssH + 'px';
+  // height는 CSS의 height:auto가 width/height 속성 비율로 계산 — 좁은 창에서 비율 유지
   return c;
 }
 const chartCanvas = initCanvas('chartCanvas', 680, 380);

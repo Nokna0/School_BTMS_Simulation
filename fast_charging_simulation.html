@@ -824,28 +824,24 @@ function drawPack(canvasId, p, time) {
   }
 
   if (failed) {
-    // 열폭주: 맥동하는 적색 글로우 + 연기/불씨 상승
-    const pulse = 0.10 + 0.07 * (0.5 + 0.5 * Math.sin(time * 6));
-    ctx.fillStyle = `rgba(198,40,40,${pulse})`;
-    ctx.fillRect(0, 0, W, H);
-    for (let i = 0; i < 14; i++) {
-      const life = (time * 0.5 + i * 0.37) % 1;          // 0..1 상승 수명
-      const px = x0 + (i + 0.5) / 14 * gridW + Math.sin(time * 1.6 + i) * 7;
-      const py = y0 - 6 - life * 70;
-      if (i % 3 === 0) {                                  // 불씨(ember)
-        ctx.fillStyle = `rgba(255,${120 - Math.round(80 * life)},30,${0.8 * (1 - life)})`;
-        ctx.beginPath(); ctx.arc(px, py, 2.2, 0, Math.PI * 2); ctx.fill();
-      } else {                                            // 연기(smoke)
-        ctx.fillStyle = `rgba(110,110,120,${0.30 * (1 - life)})`;
-        ctx.beginPath(); ctx.arc(px, py, 4 + life * 7, 0, Math.PI * 2); ctx.fill();
-      }
-    }
-    ctx.fillStyle = C.critical;
+    // 열폭주 경고 — heat_engine_collapse_simulator.html의 SEIZED 오버레이와 동일:
+    // 어두운 틴트 + 빨간 X + 박스 라벨 (정적 — 연기/불씨 효과 제거)
+    ctx.fillStyle = 'rgba(10,4,4,0.5)';
+    ctx.beginPath(); ctx.roundRect(0, 0, W, H, 8); ctx.fill();
+
+    const xm = 16;                                   // X 대각선 여백
+    ctx.strokeStyle = '#f44336'; ctx.lineWidth = 3; ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.moveTo(xm, xm);     ctx.lineTo(W - xm, H - xm); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W - xm, xm); ctx.lineTo(xm, H - xm);     ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    const boxW = 92, boxH = 30;                      // 중앙 경고 박스
+    ctx.fillStyle = '#0c0808';
+    ctx.beginPath(); ctx.roundRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH, 4); ctx.fill();
+    ctx.fillStyle = '#f44336';
     ctx.font = `bold 14px ${FONT}`;
     ctx.textAlign = 'center';
-    ctx.fillText('⚠ 열폭주 발생', cx, cy - 2);
-    ctx.font = `11px ${FONT}`;
-    ctx.fillText('충전 차단 · 셀 손상', cx, cy + 16);
+    ctx.fillText('열폭주', cx, cy + 5);
   } else if (p.temp > T_WARN) {
     // 과열 중인 무냉각 팩 — 아지랑이
     const n = Math.min(12, Math.ceil((p.temp - T_WARN) / 3));
