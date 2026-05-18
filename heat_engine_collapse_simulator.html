@@ -4,6 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Thermal Engine Collapse Simulator</title>
+<script>
+/* 첫 페인트 전에 테마 결정 (FOUC 방지): 저장된 선택 우선, 없으면 OS 설정 */
+(function () {
+  try {
+    var saved = localStorage.getItem('theme');
+    var dark  = saved ? saved === 'dark'
+                      : matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  } catch (e) {
+    document.documentElement.dataset.theme = 'light';
+  }
+})();
+</script>
 <style>
 /* ════════════════════════════════════════════════════════════════════════
    THEME TOKENS
@@ -37,8 +50,7 @@
   --c-critical-bg: #ffe5e5;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+:root[data-theme="dark"] {
     color-scheme: dark;
     --c-bg:          #060a14;
     --c-surface:     #0a0e1c;
@@ -60,7 +72,6 @@
     --c-warn-bg:     #1a1200;
     --c-danger-bg:   #180a06;
     --c-critical-bg: #180404;
-  }
 }
 
 /* ─── BASE LAYOUT ─────────────────────────────────────────────────────── */
@@ -196,6 +207,23 @@ button {
   color: var(--c-cool);
 }
 
+.btn-theme {
+  padding: 8px 12px;
+  border: 1px solid var(--c-text-faint);
+  background: transparent;
+  color: var(--c-text-faint);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 1px;
+  border-radius: 6px;
+  align-self: flex-start;
+  white-space: nowrap;
+}
+.btn-theme:hover { border-color: var(--c-accent); color: var(--c-accent); }
+
+/* ─── HEADER RIGHT (readout + theme toggle) ───────────────────────────── */
+.topbar__right { display: flex; align-items: flex-start; gap: 12px; }
+
 /* ─── SLIDERS ─────────────────────────────────────────────────────────── */
 .slider-head { display: flex; justify-content: space-between; margin-bottom: 5px; }
 .slider-val  { font-size: 18px; font-weight: bold; color: var(--c-cool); }
@@ -242,10 +270,13 @@ input[type=range] {
     <div class="topbar__title">THERMAL ENGINE COLLAPSE SIMULATOR</div>
     <div class="topbar__subtitle">열역학 1법칙(ΔU = Q, W≈0): m·c·(dT/dt) = Q_in − Q_out  ·  카르노 효율: η = 1 − T_C/T_H  ·  m·c = 36 kJ/K</div>
   </div>
-  <div class="topbar__readout">
-    <div id="hdr-temp">25.0°C</div>
-    <div id="hdr-status">■ 정상 운전</div>
-    <div id="hdr-time">t = 0.0 s</div>
+  <div class="topbar__right">
+    <div class="topbar__readout">
+      <div id="hdr-temp">25.0°C</div>
+      <div id="hdr-status">■ 정상 운전</div>
+      <div id="hdr-time">t = 0.0 s</div>
+    </div>
+    <button class="btn-theme" id="btn-theme" onclick="toggleTheme()">🌙 다크</button>
   </div>
 </header>
 
@@ -390,15 +421,38 @@ let isDark = false;   // OS 라이트/다크 — 엔진 단면도 팔레트 분�
 function refreshPalette() {
   const cs = getComputedStyle(document.documentElement);
   for (const key in PALETTE_VARS) C[key] = cs.getPropertyValue(PALETTE_VARS[key]).trim();
-  isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  isDark = document.documentElement.dataset.theme === 'dark';
 }
 refreshPalette();
 
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+/* ── THEME TOGGLE (수동 전환 + localStorage 저장, 없으면 OS 설정) ───────── */
+function currentTheme() {
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+}
+function setThemeLabel() {
+  $('btn-theme').textContent = currentTheme() === 'dark' ? '☀ 라이트' : '🌙 다크';
+}
+function applyThemeVisuals() {
   refreshPalette();
   renderCascade();
   setCool($('sl-cool').value);   // re-applies cooling colour + alert state
   redrawDashboard();
+  setThemeLabel();
+}
+function applyTheme(theme, persist) {
+  document.documentElement.dataset.theme = theme;
+  if (persist) { try { localStorage.setItem('theme', theme); } catch (e) {} }
+  applyThemeVisuals();
+}
+function toggleTheme() {
+  applyTheme(currentTheme() === 'dark' ? 'light' : 'dark', true);
+}
+
+// 사용자가 직접 고르지 않았을 때만 OS 설정 변화를 따라감
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+  let saved = null;
+  try { saved = localStorage.getItem('theme'); } catch (_) {}
+  if (!saved) applyTheme(e.matches ? 'dark' : 'light', false);
 });
 
 /* ── HiDPI CANVAS SCALING ───────────────────────────────────────────────── */
@@ -1030,6 +1084,7 @@ function setCool(v) {
 }
 
 /* ── INITIAL RENDER ─────────────────────────────────────────────────────── */
+setThemeLabel();
 renderCascade();
 renderEventLog();
 redrawDashboard();

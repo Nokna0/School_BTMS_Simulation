@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BTMS Fast-Charging Scenario Simulator</title>
+<script>
+/* 첫 페인트 전에 테마 결정 (FOUC 방지): 저장된 선택 우선, 없으면 OS 설정 */
+(function () {
+  try {
+    var saved = localStorage.getItem('theme');
+    var dark  = saved ? saved === 'dark'
+                      : matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  } catch (e) {
+    document.documentElement.dataset.theme = 'light';
+  }
+})();
+</script>
+<style>
+/* ════════════════════════════════════════════════════════════════════════
+   THEME TOKENS  —  identical palette to the other two simulators
+   :root        → light mode (default)
+   data-theme   → manual toggle (저장됨), 없으면 OS 설정을 따름
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  color-scheme: light;
+  --font-ui:       Dotum, '돋움', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  --c-bg:          #eceff5;
+  --c-surface:     #ffffff;
+  --c-surface-2:   #e6eaf1;
+  --c-border:      #d3d9e6;
+  --c-grid:        #e2e7f0;
+  --c-text:        #000000;
+  --c-text-dim:    #000000;
+  --c-text-faint:  #000000;
+  --c-accent:      #000000;
+  --c-cool:        #0277bd;
+  --c-success:     #2e7d32;
+  --c-amber:       #b58900;
+  --c-warn:        #e65100;
+  --c-danger:      #d84315;
+  --c-critical:    #c62828;
+  --c-warn-bg:     #fff3e0;
+  --c-danger-bg:   #ffece4;
+  --c-critical-bg: #ffe5e5;
+  --c-success-bg:  #e8f5e9;
+  --c-info-bg:     #e4f1fb;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --c-bg:          #060a14;
+    --c-surface:     #0a0e1c;
+    --c-surface-2:   #040710;
+    --c-border:      #141e38;
+    --c-grid:        #0d1428;
+    --c-text:        #ffffff;
+    --c-text-dim:    #ffffff;
+    --c-text-faint:  #ffffff;
+    --c-accent:      #ffffff;
+    --c-cool:        #4fc3f7;
+    --c-success:     #4caf50;
+    --c-amber:       #ffc107;
+    --c-warn:        #ff9800;
+    --c-danger:      #ff5722;
+    --c-critical:    #f44336;
+    --c-warn-bg:     #1a1200;
+    --c-danger-bg:   #180a06;
+    --c-critical-bg: #180404;
+    --c-success-bg:  #0c1a0d;
+    --c-info-bg:     #071520;
+}
+
+/* ─── BASE LAYOUT ─────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  padding: 16px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.col { display: flex; flex-direction: column; gap: 10px; }
+
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 14px;
+  position: relative;
+}
+.card.is-danger  { border-color: var(--c-critical); }
+.card.is-warning { border-color: var(--c-warn); }
+
+.label {
+  font-size: 11px;
+  color: var(--c-accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+/* ─── HEADER ──────────────────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--c-grid);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+.topbar__title    { font-size: 14px; font-weight: bold; letter-spacing: 3px; color: var(--c-accent); }
+.topbar__subtitle { font-size: 10px; color: var(--c-text-dim); letter-spacing: 1px; margin-top: 4px; }
+
+/* ─── CONTROLS ────────────────────────────────────────────────────────── */
+.controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+button {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 1px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-main {
+  padding: 9px 16px;
+  border: 1px solid var(--c-success);
+  background: transparent;
+  color: var(--c-success);
+  opacity: .8;
+}
+.btn-main.is-running { opacity: 1; font-weight: bold; }
+
+.btn-reset {
+  padding: 9px 14px;
+  border: 1px solid var(--c-text-dim);
+  background: transparent;
+  color: var(--c-text-dim);
+}
+
+.btn-theme {
+  padding: 9px 12px;
+  border: 1px solid var(--c-text-dim);
+  background: transparent;
+  color: var(--c-text-dim);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 1px;
+  border-radius: 6px;
+}
+.btn-theme:hover { border-color: var(--c-accent); color: var(--c-accent); }
+
+.speed-btn {
+  padding: 7px 11px;
+  border: 1px solid var(--c-border);
+  background: transparent;
+  color: var(--c-text-dim);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  letter-spacing: 1px;
+  border-radius: 6px;
+}
+.speed-btn.is-active {
+  border-color: var(--c-cool);
+  color: var(--c-cool);
+}
+
+/* ─── INPUT SLIDERS ───────────────────────────────────────────────────── */
+.inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.input-cell {
+  background: var(--c-surface-2);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.input-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.input-name { font-size: 11px; color: var(--c-text-dim); letter-spacing: 1px; }
+.input-val  { font-size: 18px; font-weight: bold; color: var(--c-cool); }
+.input-sub  { font-size: 11px; color: var(--c-text-faint); margin-top: 4px; }
+
+input[type=range] {
+  width: 100%;
+  margin: 8px 0 2px;
+  accent-color: var(--c-cool);
+}
+
+@media (max-width: 720px) {
+  .inputs-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ─── PROGRESS ────────────────────────────────────────────────────────── */
+.bar-bg {
+  background: var(--c-surface-2);
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--c-cool);
+  transition: width .1s linear;
+}
+.time-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--c-text-faint);
+  margin-top: 5px;
+}
+
+/* ─── BATTERY CARDS ───────────────────────────────────────────────────── */
+.packs-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 720px) {
+  .packs-row { grid-template-columns: 1fr; }
+}
+
+.pack-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.pack-name { font-size: 13px; font-weight: bold; }
+
+.badge {
+  font-size: 11px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid;
+}
+.badge.is-info    { color: var(--c-cool);     border-color: var(--c-cool);     background: var(--c-info-bg); }
+.badge.is-success { color: var(--c-success);  border-color: var(--c-success);  background: var(--c-success-bg); }
+.badge.is-warn    { color: var(--c-warn);     border-color: var(--c-warn);     background: var(--c-warn-bg); }
+.badge.is-danger  { color: var(--c-critical); border-color: var(--c-critical); background: var(--c-critical-bg); }
+
+.pack-canvas { width: 100%; height: 160px; display: block; }
+
+.metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.metric {
+  background: var(--c-surface-2);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.m-label { font-size: 11px; color: var(--c-text-dim); }
+.m-val   { font-size: 21px; font-weight: bold; margin-top: 3px; color: var(--c-text); }
+.m-sub   { font-size: 11px; color: var(--c-text-faint); margin-top: 2px; }
+
+.event-log {
+  background: var(--c-surface-2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  height: 76px;
+  overflow-y: auto;
+  font-size: 12px;
+  margin-top: 10px;
+  color: var(--c-text-dim);
+}
+.event-item      { padding: 1px 0; }
+.event-item.warn { color: var(--c-warn); }
+.event-item.crit { color: var(--c-critical); }
+
+.failure-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(198, 40, 40, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--c-critical);
+  border-radius: 8px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .5s;
+}
+
+/* ─── CHART CARDS ─────────────────────────────────────────────────────── */
+.legend-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--c-text-dim);
+}
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-dot  { width: 11px; height: 11px; border-radius: 2px; }
+
+.chart-box { position: relative; width: 100%; height: 230px; }
+.chart-box--sm { height: 170px; }
+</style>
+</head>
+<body>
+
+<h2 class="sr-only">BTMS 급속 충전 시나리오 시뮬레이션 — 냉각 유무에 따른 배터리 발열 비교</h2>
+
+<div class="col">
+
+  <header class="topbar">
+    <div>
+      <div class="topbar__title">BTMS FAST-CHARGING SCENARIO</div>
+      <div class="topbar__subtitle">줄 발열 Q_gen = I²·R  ·  열수지(1법칙, W≈0): m·c·(dT/dt) = Q_gen − Q_cool − Q_loss  ·  자연 방열 Q_loss ∝ (T − T_외부)</div>
+    </div>
+    <div class="controls">
+      <button class="speed-btn"           id="spd-1" data-speed="1">1×</button>
+      <button class="speed-btn"           id="spd-2" data-speed="2">2×</button>
+      <button class="speed-btn"           id="spd-4" data-speed="4">4×</button>
+      <button class="speed-btn is-active"  id="spd-8" data-speed="8">8×</button>
+      <button class="btn-main" id="btn-play">▶ 시작</button>
+      <button class="btn-reset" id="btn-reset">↺ 초기화</button>
+      <button class="btn-theme" id="btn-theme">🌙 다크</button>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="label">충전 입력값</div>
+    <div class="inputs-grid">
+
+      <div class="input-cell">
+        <div class="input-head">
+          <span class="input-name">충전 전류</span>
+          <span class="input-val" id="in-cur-val">280 A</span>
+        </div>
+        <input type="range" id="in-cur" min="50" max="350" step="10" value="280"
+               aria-label="충전 전류 (암페어)">
+        <div class="input-sub" id="in-cur-sub">≈ 1.9 C</div>
+      </div>
+
+      <div class="input-cell">
+        <div class="input-head">
+          <span class="input-name">외부 온도</span>
+          <span class="input-val" id="in-amb-val">25 °C</span>
+        </div>
+        <input type="range" id="in-amb" min="-10" max="45" step="1" value="25"
+               aria-label="외부 온도 (섭씨)">
+        <div class="input-sub" id="in-amb-sub">초기 셀 온도 = 외부 온도</div>
+      </div>
+
+      <div class="input-cell">
+        <div class="input-head">
+          <span class="input-name">충전 시간</span>
+          <span class="input-val" id="in-dur-val">45 분</span>
+        </div>
+        <input type="range" id="in-dur" min="5" max="60" step="1" value="45"
+               aria-label="충전 시간 (분)">
+        <div class="input-sub" id="in-dur-sub">시뮬레이션 구간 = 2700초</div>
+      </div>
+
+      <div class="input-cell">
+        <div class="input-head">
+          <span class="input-name">배터리 용량</span>
+          <span class="input-val" id="in-cap-val">60 kWh</span>
+        </div>
+        <input type="range" id="in-cap" min="20" max="100" step="5" value="60"
+               aria-label="배터리 용량 (킬로와트시)">
+        <div class="input-sub" id="in-cap-sub">m·c ≈ 324 kJ/K · R ≈ 80 mΩ</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="bar-bg"><div class="bar-fill" id="time-progress" style="width:0%"></div></div>
+    <div class="time-row">
+      <span>0분</span><span id="time-display">경과: 0초 · 충전률 10%</span><span id="time-end">45분</span>
+    </div>
+  </div>
+
+  <div class="packs-row">
+
+    <div class="card" id="card-btms">
+      <div class="pack-head">
+        <span class="pack-name">BTMS 적용 배터리</span>
+        <span class="badge is-info" id="status-btms">정상</span>
+      </div>
+      <canvas class="pack-canvas" id="canvas-btms"></canvas>
+      <div class="metrics">
+        <div class="metric"><div class="m-label">최고 온도</div><div class="m-val" id="max-btms">25°C</div><div class="m-sub" id="cur-btms">현재 25°C</div></div>
+        <div class="metric"><div class="m-label">평균 온도</div><div class="m-val" id="avg-btms">25°C</div><div class="m-sub">충전 구간 평균</div></div>
+        <div class="metric"><div class="m-label">냉각 효율</div><div class="m-val" id="ceff-btms">—</div><div class="m-sub" id="ceff-btms-sub">제거열 / 발생열</div></div>
+        <div class="metric"><div class="m-label">에너지 손실</div><div class="m-val" id="loss-btms">0 kJ</div><div class="m-sub" id="loss-btms-sub">줄열 누적</div></div>
+      </div>
+      <div class="event-log" id="log-btms"><div class="event-item">시스템 대기 중...</div></div>
+      <div class="failure-overlay" id="fail-btms"></div>
+    </div>
+
+    <div class="card" id="card-none">
+      <div class="pack-head">
+        <span class="pack-name">냉각 없는 배터리</span>
+        <span class="badge is-success" id="status-none">정상</span>
+      </div>
+      <canvas class="pack-canvas" id="canvas-none"></canvas>
+      <div class="metrics">
+        <div class="metric"><div class="m-label">최고 온도</div><div class="m-val" id="max-none">25°C</div><div class="m-sub" id="cur-none">현재 25°C</div></div>
+        <div class="metric"><div class="m-label">평균 온도</div><div class="m-val" id="avg-none">25°C</div><div class="m-sub">충전 구간 평균</div></div>
+        <div class="metric"><div class="m-label">냉각 효율</div><div class="m-val" id="ceff-none">없음</div><div class="m-sub">능동 냉각 미적용</div></div>
+        <div class="metric"><div class="m-label">에너지 손실</div><div class="m-val" id="loss-none">0 kJ</div><div class="m-sub" id="loss-none-sub">줄열 누적</div></div>
+      </div>
+      <div class="event-log" id="log-none"><div class="event-item">시스템 대기 중...</div></div>
+      <div class="failure-overlay" id="fail-none"></div>
+    </div>
+
+  </div>
+
+  <div class="card">
+    <div class="label">셀 온도 변화 추이 (°C)</div>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-dot" id="lg-temp-btms"></div>BTMS 배터리</div>
+      <div class="legend-item"><div class="legend-dot" id="lg-temp-none"></div>냉각 없는 배터리</div>
+      <div class="legend-item"><div class="legend-dot" id="lg-warn"></div>경고 45°C</div>
+      <div class="legend-item"><div class="legend-dot" id="lg-crit"></div>위험 60°C</div>
+    </div>
+    <div class="chart-box">
+      <canvas id="temp-chart" role="img" aria-label="냉각 유무에 따른 셀 온도 변화 추이 차트">온도 변화 추이: BTMS 적용 배터리는 목표 온도 부근에서 안정, 냉각 없는 배터리는 급속 충전 발열로 온도가 급상승.</canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">냉각 효율 변화 (%) η_cool = Q_제거 / Q_발생 (누적)</div>
+    <div class="chart-box chart-box--sm">
+      <canvas id="ceff-chart" role="img" aria-label="냉각 효율 변화 차트">냉각 효율: BTMS 배터리는 발생열의 대부분을 제거, 냉각 없는 배터리는 0%.</canvas>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/* 돋움 기반 universal 폰트 (영문·한글 공용) — 캔버스/Chart.js 공통 사용 */
+const FONT = "Dotum, '돋움', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif";
+
+/* ── PHYSICS CONSTANTS ──────────────────────────────────────────────────────
+   집중정수 배터리 열모델. 핵심 관계식은 교육과정 공식을 그대로 사용:
+     · 줄 발열(전기→열):    Q_gen = I²·R
+     · 열역학 1법칙(W≈0):   m·c·(dT/dt) = Q_gen − Q_cool − Q_loss
+     · 자연 방열(뉴턴 냉각): Q_loss = h·(T − T_외부)
+   비등·열폭주 등은 collapse 시뮬레이터와 동일하게 법칙을 위반하지 않는
+   시나리오 보정 요소. */
+const TICK_MS  = 100;   // ms  wall-clock per UI tick
+const DT       = 1;     // s   per physics step
+const KELVIN   = 273.15;// °C → K
+
+const T_OPT    = 30;    // °C  BTMS 목표 셀 온도
+const T_WARN   = 45;    // °C  Li-ion 수명 열화 경고
+const T_CRIT   = 60;    // °C  급속 열화·손상
+const T_FAIL   = 80;    // °C  열폭주 위험 임계
+
+const C_SPEC       = 900;  // J/(kg·K)  셀 팩 평균 비열
+const MASS_PER_KWH = 6;    // kg/kWh    팩 포함 환산 질량
+const R_REF        = 0.08; // Ω         60 kWh 기준 팩 내부저항
+const Q_REF        = 60;   // kWh       기준 용량
+const ALPHA_R      = 0.006;// 1/°C      T_OPT 초과 시 내부저항 증가계수
+const RUN_GAIN     = 1.8;  // —         열폭주 양성 피드백 강도 (T_WARN 초과 시)
+const V_PACK       = 400;  // V         공칭 팩 전압 (충전률·손실률 표시용)
+const H_NAT        = 25;   // W/K       자연 방열(뉴턴 냉각) 계수
+const U_BTMS       = 600;  // W/K       BTMS 열교환 계수
+const BTMS_MAX_REF = 4500; // W         60 kWh 기준 BTMS 최대 냉각 출력
+const SOC_START    = 0.10; // 급속 충전 시작 SOC (10%)
+
+/* m·c = (질량) · (비열).  교육과정: 열용량 C = m·c,  Q = m·c·ΔT */
+function thermalMass(capKwh) { return MASS_PER_KWH * capKwh * C_SPEC; }       // J/K
+function rInternal(capKwh, T) {
+  const r0  = R_REF * Q_REF / capKwh;                  // 작은 팩일수록 저항↑
+  let   fac = T > T_OPT ? 1 + ALPHA_R * (T - T_OPT) : 1;// 고온일수록 저항↑(양성 피드백)
+  // 열폭주: 경고 온도(T_WARN) 초과 시 발열반응으로 내부저항이 급격히 증가
+  if (T > T_WARN) fac *= 1 + RUN_GAIN * ((T - T_WARN) / 10) ** 2;
+  return r0 * fac;
+}
+function jouleHeat(I, capKwh, T) { return I * I * rInternal(capKwh, T); }      // W = I²R
+function btmsMax(capKwh)         { return BTMS_MAX_REF * capKwh / Q_REF; }     // W
+function btmsCooling(T, capKwh)  {
+  if (T <= T_OPT) return 0;
+  return Math.min(btmsMax(capKwh), U_BTMS * (T - T_OPT));                      // 비례 냉각, 상한
+}
+function natCooling(T, Tamb)     { return Math.max(0, H_NAT * (T - Tamb)); }   // h·(T − T_외부)
+
+/* ── INPUT STATE ────────────────────────────────────────────────────────── */
+const input = { current: 280, ambient: 25, durationMin: 45, capacity: 60 };
+function maxTime() { return input.durationMin * 60; }   // s
+
+/* ── THEME PALETTE ──────────────────────────────────────────────────────────
+   Resolve CSS variables once for canvas/Chart.js, refresh on theme change. */
+const PALETTE_VARS = {
+  surface:   '--c-surface',
+  grid:      '--c-grid',
+  border:    '--c-border',
+  accent:    '--c-accent',
+  text:      '--c-text',
+  textDim:   '--c-text-dim',
+  textFaint: '--c-text-faint',
+  cool:      '--c-cool',
+  success:   '--c-success',
+  amber:     '--c-amber',
+  warn:      '--c-warn',
+  danger:    '--c-danger',
+  critical:  '--c-critical',
+};
+const C = {};
+function refreshPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k in PALETTE_VARS) C[k] = cs.getPropertyValue(PALETTE_VARS[k]).trim();
+}
+refreshPalette();
+
+/* ── SIMULATION STATE ───────────────────────────────────────────────────── */
+function newPack(hasBTMS) {
+  return {
+    hasBTMS,
+    temp: input.ambient,
+    maxT: input.ambient,
+    sumT: 0, cnt: 0, avgT: input.ambient,
+    eGen: 0, eCool: 0,            // J  누적 발생열 / 제거열
+    coolEff: 0,                   // 0..1 누적 냉각 효율
+    failed: false, failTime: null,
+    _stab: false, _warn: false, _crit: false,
+  };
+}
+const state = {
+  t: 0, running: false, timer: null, speed: 8,
+  soc: SOC_START,
+  btms: newPack(true),
+  none: newPack(false),
+  tempHistory: { btms: [], none: [], labels: [] },
+  ceffHistory: { btms: [], none: [] },
+};
+
+/* ── PHYSICS STEP ───────────────────────────────────────────────────────────
+   각 배터리에 대해 열역학 1법칙 열수지를 명시적 오일러법으로 적분. */
+function stepPack(p, label) {
+  if (p.failed) return;
+  const cap  = input.capacity, I = input.current, Tamb = input.ambient;
+  const Pgen = jouleHeat(I, cap, p.temp);
+  const Pcl  = p.hasBTMS ? btmsCooling(p.temp, cap) : 0;
+  const Pnat = natCooling(p.temp, Tamb);
+  const Cth  = thermalMass(cap);
+
+  p.temp += (Pgen - Pcl - Pnat) / Cth * DT;
+  p.temp  = clamp(p.temp, Tamb, 150);
+
+  p.eGen += Pgen * DT;
+  p.eCool += Pcl * DT;
+  p.coolEff = p.eGen > 0 ? clamp(p.eCool / p.eGen, 0, 1) : 0;
+
+  // 열폭주: 임계온도 도달 시 온도를 임계값에 고정하고 충전 차단
+  if (p.temp >= T_FAIL) {
+    p.temp   = T_FAIL;
+    p.failed = true; p.failTime = state.t;
+  }
+
+  p.maxT = Math.max(p.maxT, p.temp);
+  p.sumT += p.temp; p.cnt++;
+  p.avgT = p.sumT / p.cnt;
+
+  // ── 시나리오 이벤트 (물리식 아님) ──
+  if (p.failed) {
+    addEvent(label, `🔴 ${fmtT(state.t)}: ${T_FAIL}°C 도달 — 열폭주 발생, 충전 차단`, 'crit');
+    return;
+  }
+  if (p.hasBTMS) {
+    if (!p._stab && p.temp <= T_OPT + 4 && state.t > 30 && p.maxT > T_OPT + 4) {
+      p._stab = true;
+      addEvent(label, `✔ ${fmtT(state.t)}: BTMS 냉각 평형 — 목표 온도 부근 안정`, 'normal');
+    }
+    if (!p._crit && p.temp >= T_CRIT) {
+      p._crit = true;
+      addEvent(label, `⚠ ${fmtT(state.t)}: ${T_CRIT}°C — BTMS 냉각 한계 초과`, 'crit');
+    } else if (!p._warn && p.temp >= T_WARN) {
+      p._warn = true;
+      addEvent(label, `⚡ ${fmtT(state.t)}: ${T_WARN}°C — BTMS 냉각 한계 접근`, 'warn');
+    }
+  } else {
+    if (!p._crit && p.temp >= T_CRIT) {
+      p._crit = true;
+      addEvent(label, `⚠ ${fmtT(state.t)}: ${T_CRIT}°C — 급속 열화·열폭주 전조`, 'crit');
+    } else if (!p._warn && p.temp >= T_WARN) {
+      p._warn = true;
+      addEvent(label, `⚡ ${fmtT(state.t)}: ${T_WARN}°C — 수명 열화 시작·발열 가속`, 'warn');
+    }
+  }
+}
+
+function simStep(speed) {
+  const MAX = maxTime();
+  for (let i = 0; i < speed; i++) {
+    if (state.t >= MAX) { stopSim(); return; }
+    state.t += DT;
+
+    stepPack(state.btms, 'btms');
+    stepPack(state.none, 'none');
+
+    // 충전률(SOC): 단자 전력 − 줄열 손실 = 셀에 저장되는 에너지
+    const Pin   = V_PACK * input.current;                       // W
+    const Ploss = jouleHeat(input.current, input.capacity, state.btms.temp);
+    const capJ  = input.capacity * 3.6e6;                       // kWh → J
+    state.soc   = clamp(state.soc + (Pin - Ploss) * DT / capJ, 0, 1);
+
+    if (state.soc >= 1 && state.t < MAX) {
+      addEvent('btms', `✔ ${fmtT(state.t)}: 충전 완료 (SOC 100%)`, 'normal');
+      stopSim();
+      return;
+    }
+  }
+
+  const sampleEvery = Math.max(2, Math.round(MAX / 150));
+  if (state.t % sampleEvery < DT * speed || state.t >= MAX) {
+    const H = state.tempHistory, E = state.ceffHistory;
+    H.labels.push((state.t / 60).toFixed(1));
+    H.btms.push(+state.btms.temp.toFixed(1));
+    H.none.push(+state.none.temp.toFixed(1));
+    E.btms.push(+(state.btms.coolEff * 100).toFixed(1));
+    E.none.push(0);
+    if (H.labels.length > 200) {
+      H.labels.shift(); H.btms.shift(); H.none.shift();
+      E.btms.shift();   E.none.shift();
+    }
+  }
+}
+
+function fmtT(sec) {
+  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  return m > 0 ? `${m}분 ${s}초` : `${s}초`;
+}
+
+function addEvent(which, msg, type) {
+  const log = $('log-' + which);
+  const div = document.createElement('div');
+  div.className = 'event-item ' + (type === 'crit' ? 'crit' : type === 'warn' ? 'warn' : '');
+  div.textContent = msg;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* ── DASHBOARD ──────────────────────────────────────────────────────────── */
+function lossKJ(p) { return p.eGen / 1000; }
+function lossPct(p) {
+  const delivered = V_PACK * input.current * Math.max(1, state.t);  // J (≈ 단자 공급 에너지)
+  return delivered > 0 ? p.eGen / delivered * 100 : 0;
+}
+
+function updateUI() {
+  const b = state.btms, n = state.none;
+  const MAX = maxTime();
+
+  $('time-progress').style.width = Math.min(100, state.t / MAX * 100) + '%';
+  $('time-display').textContent  =
+    `경과: ${fmtT(state.t)} · 충전률 ${Math.round(state.soc * 100)}%`;
+  $('time-end').textContent = input.durationMin + '분';
+
+  // BTMS pack
+  $('max-btms').textContent  = Math.round(b.maxT) + '°C';
+  $('cur-btms').textContent  = '현재 ' + Math.round(b.temp) + '°C';
+  $('avg-btms').textContent  = Math.round(b.avgT) + '°C';
+  $('ceff-btms').textContent = state.t > 0 ? Math.round(b.coolEff * 100) + '%' : '—';
+  $('ceff-btms-sub').textContent = `제거 ${Math.round(b.eCool / 1000)} / 발생 ${Math.round(b.eGen / 1000)} kJ`;
+  $('loss-btms').textContent = Math.round(lossKJ(b)) + ' kJ';
+  $('loss-btms-sub').textContent = '공급 대비 ' + lossPct(b).toFixed(1) + '%';
+  $('max-btms').style.color  = heatTextColor(b.maxT);
+  $('ceff-btms').style.color = C.success;
+
+  // No-cooling pack
+  $('max-none').textContent  = n.failed ? '열폭주' : Math.round(n.maxT) + '°C';
+  $('cur-none').textContent  = n.failed ? '충전 차단' : '현재 ' + Math.round(n.temp) + '°C';
+  $('avg-none').textContent  = Math.round(n.avgT) + '°C';
+  $('loss-none').textContent = Math.round(lossKJ(n)) + ' kJ';
+  $('loss-none-sub').textContent = '공급 대비 ' + lossPct(n).toFixed(1) + '%';
+  $('max-none').style.color  = n.failed ? C.critical : heatTextColor(n.maxT);
+
+  setBadge('btms', b, false);
+  setBadge('none', n, true);
+
+  // 팩 캔버스는 별도 requestAnimationFrame 루프에서 부드럽게 렌더 (배속 무관)
+  updateCharts();
+}
+
+function setBadge(which, p, isNone) {
+  const card = $('card-' + which), badge = $('status-' + which), ov = $('fail-' + which);
+  card.classList.remove('is-danger', 'is-warning');
+  ov.style.opacity = '0'; ov.textContent = '';
+  if (p.failed) {
+    card.classList.add('is-danger');
+    badge.textContent = '열폭주 위험'; badge.className = 'badge is-danger';
+    ov.style.opacity = '1'; ov.textContent = '⚠ 열폭주 위험 — 충전 차단';
+  } else if (p.temp >= T_CRIT) {
+    card.classList.add('is-danger');
+    badge.textContent = '위험'; badge.className = 'badge is-danger';
+  } else if (p.temp >= T_WARN) {
+    card.classList.add('is-warning');
+    badge.textContent = '경고'; badge.className = 'badge is-warn';
+  } else {
+    badge.textContent = '정상';
+    badge.className = 'badge ' + (isNone ? 'is-success' : 'is-info');
+  }
+}
+
+/* ── BATTERY PACK ANIMATION ─────────────────────────────────────────────── */
+function heatTextColor(temp) {
+  if (temp >= T_FAIL) return C.critical;
+  if (temp >= T_CRIT) return C.danger;
+  if (temp >= T_WARN) return C.warn;
+  if (temp >= T_OPT)  return C.amber;
+  return C.cool;
+}
+
+// 셀 온도 → 색 (저온 청색 → 최적 녹색 → 경고 호박 → 위험 적색)
+function cellColor(temp, alpha) {
+  const r = clamp((temp - input.ambient) / (T_FAIL - input.ambient), 0, 1);
+  let R, G, B;
+  if (r < 0.5) {            // cool → green
+    const t = r / 0.5;
+    R = Math.round( 40 + 30 * t); G = Math.round(150 + 30 * t); B = Math.round(210 - 130 * t);
+  } else {                  // green → amber → red
+    const t = (r - 0.5) / 0.5;
+    R = Math.round( 70 + 175 * t); G = Math.round(180 - 130 * t); B = Math.round( 80 - 50 * t);
+  }
+  return `rgba(${R},${G},${B},${alpha})`;
+}
+
+let animClock = 0;   // 실시간(초) 누적 — 애니메이션 위상 (시뮬 배속과 독립)
+
+function drawPack(canvasId, p, time) {
+  const canvas = $(canvasId);
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth || 280, H = 160;
+  if (canvas.width !== W * dpr) { canvas.width = W * dpr; canvas.height = H * dpr; }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const cx = W / 2, cy = H / 2 - 6;
+  const cols = 6, rows = 2, cw = 26, ch = 34, gap = 7;
+  const gridW = cols * cw + (cols - 1) * gap;
+  const gridH = rows * ch + (rows - 1) * gap;
+  const x0 = cx - gridW / 2, y0 = cy - gridH / 2;
+  const failed = p.failed;
+
+  // Pack enclosure
+  ctx.fillStyle   = cellColor(p.temp, 0.12);
+  ctx.strokeStyle = failed ? C.critical : C.border;
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath(); ctx.roundRect(x0 - 14, y0 - 12, gridW + 28, gridH + 24, 8); ctx.fill(); ctx.stroke();
+
+  // BTMS cooling plates + coolant flow (healthy pack only)
+  if (p.hasBTMS && !failed) {
+    ctx.fillStyle = C.cool + '33';
+    ctx.beginPath(); ctx.roundRect(x0 - 14, y0 - 12, gridW + 28, 5, 2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(x0 - 14, y0 + gridH + 7, gridW + 28, 5, 2); ctx.fill();
+    ctx.fillStyle = C.cool;
+    const span = gridW + 20;
+    for (let i = 0; i < 7; i++) {
+      const fx = x0 - 6 + ((time * 34 + i * span / 7) % span);
+      ctx.beginPath(); ctx.arc(fx, y0 - 9.5, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(fx, y0 + gridH + 9.5, 2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // Battery cells
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = x0 + c * (cw + gap), y = y0 + r * (ch + gap);
+      let fill, stroke;
+      if (failed) {
+        const flick = 0.55 + 0.45 * Math.abs(Math.sin(time * 9 + c * 1.7 + r));
+        fill   = `rgba(${230 + Math.round(20 * flick)},${Math.round(70 * flick)},20,0.88)`;
+        stroke = '#7a1500';
+      } else {
+        const wobble = Math.sin(time * 2 + c + r) * 1.5;
+        fill   = cellColor(p.temp + wobble, 0.8);
+        stroke = cellColor(p.temp, 1);
+      }
+      ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(x, y, cw, ch, 3); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = C.surface;                       // terminal
+      ctx.beginPath(); ctx.roundRect(x + cw / 2 - 3, y - 3, 6, 4, 1); ctx.fill();
+    }
+  }
+
+  if (failed) {
+    // 열폭주: 맥동하는 적색 글로우 + 연기/불씨 상승
+    const pulse = 0.10 + 0.07 * (0.5 + 0.5 * Math.sin(time * 6));
+    ctx.fillStyle = `rgba(198,40,40,${pulse})`;
+    ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 14; i++) {
+      const life = (time * 0.5 + i * 0.37) % 1;          // 0..1 상승 수명
+      const px = x0 + (i + 0.5) / 14 * gridW + Math.sin(time * 1.6 + i) * 7;
+      const py = y0 - 6 - life * 70;
+      if (i % 3 === 0) {                                  // 불씨(ember)
+        ctx.fillStyle = `rgba(255,${120 - Math.round(80 * life)},30,${0.8 * (1 - life)})`;
+        ctx.beginPath(); ctx.arc(px, py, 2.2, 0, Math.PI * 2); ctx.fill();
+      } else {                                            // 연기(smoke)
+        ctx.fillStyle = `rgba(110,110,120,${0.30 * (1 - life)})`;
+        ctx.beginPath(); ctx.arc(px, py, 4 + life * 7, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.fillStyle = C.critical;
+    ctx.font = `bold 14px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.fillText('⚠ 열폭주 발생', cx, cy - 2);
+    ctx.font = `11px ${FONT}`;
+    ctx.fillText('충전 차단 · 셀 손상', cx, cy + 16);
+  } else if (p.temp > T_WARN) {
+    // 과열 중인 무냉각 팩 — 아지랑이
+    const n = Math.min(12, Math.ceil((p.temp - T_WARN) / 3));
+    for (let i = 0; i < n; i++) {
+      const life = (time * 0.7 + i * 0.5) % 1;
+      const px = x0 + (i + 0.5) / n * gridW + Math.sin(time * 2.2 + i) * 5;
+      const py = y0 - 12 - life * 26;
+      ctx.fillStyle = cellColor(p.temp + 18, 0.35 * (1 - life));
+      ctx.beginPath(); ctx.arc(px, py, 3 + life * 2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // Temperature scale bar
+  const barW = W - 80, barX = 40, barY = H - 14;
+  const ratio = clamp((p.temp - input.ambient) / (T_FAIL - input.ambient), 0, 1);
+  ctx.fillStyle = C.border;
+  ctx.beginPath(); ctx.roundRect(barX, barY, barW, 6, 3); ctx.fill();
+  ctx.fillStyle = failed ? C.critical : cellColor(p.temp, 0.9);
+  ctx.beginPath(); ctx.roundRect(barX, barY, barW * ratio, 6, 3); ctx.fill();
+  ctx.fillStyle = C.textDim;
+  ctx.font = `10px ${FONT}`;
+  ctx.textAlign = 'left';  ctx.fillText(input.ambient + '°C', barX, barY - 4);
+  ctx.textAlign = 'right'; ctx.fillText(T_FAIL + '°C', barX + barW, barY - 4);
+}
+
+/* 부드러운 애니메이션 — 시뮬레이션 배속과 무관하게 실시간 프레임으로 렌더.
+   물리/지표는 시뮬 틱(updateUI)에서, 시각 효과는 여기서 60fps로 갱신. */
+function renderLoop(ts) {
+  if (renderLoop._last === undefined) renderLoop._last = ts;
+  const dt = Math.min(0.05, (ts - renderLoop._last) / 1000);   // 탭 비활성 점프 방지
+  renderLoop._last = ts;
+  animClock += dt;
+  drawPack('canvas-btms', state.btms, animClock);
+  drawPack('canvas-none', state.none, animClock);
+  requestAnimationFrame(renderLoop);
+}
+requestAnimationFrame(renderLoop);
+
+/* ── CHARTS ─────────────────────────────────────────────────────────────── */
+let tempChart, ceffChart;
+
+const thresholdPlugin = {
+  id: 'thresholds',
+  afterDatasetsDraw(chart, _a, opts) {
+    const lines = (opts && opts.lines) || [];
+    const { ctx, chartArea, scales: { y } } = chart;
+    ctx.save();
+    lines.forEach(l => {
+      const yp = y.getPixelForValue(l.v);
+      if (yp < chartArea.top || yp > chartArea.bottom) return;
+      ctx.strokeStyle = l.c; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(chartArea.left, yp); ctx.lineTo(chartArea.right, yp); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = l.c;
+      ctx.font = `bold 12px ${FONT}`;
+      ctx.textAlign = 'right';
+      ctx.fillText(l.label, chartArea.right - 5, yp - 5);
+    });
+    ctx.restore();
+  }
+};
+Chart.register(thresholdPlugin);
+
+function baseScales() {
+  return {
+    x: { ticks: { color: C.textDim, font: { family: FONT, size: 10 }, maxTicksLimit: 8 },
+         grid: { color: C.grid },
+         title: { display: true, text: '시간 (분)', color: C.textDim, font: { family: FONT, size: 10 } } },
+    y: { ticks: { color: C.textDim, font: { family: FONT, size: 10 } },
+         grid: { color: C.grid } },
+  };
+}
+
+function tempLines() {
+  return [
+    { v: T_WARN, c: C.warn,     label: T_WARN + '°C 경고' },
+    { v: T_CRIT, c: C.danger,   label: T_CRIT + '°C 위험' },
+    { v: T_FAIL, c: C.critical, label: T_FAIL + '°C 열폭주' },
+  ];
+}
+
+function initCharts() {
+  Chart.defaults.font.family = FONT;
+  Chart.defaults.color = C.textDim;
+
+  const ts = baseScales();
+  ts.y.min = 0; ts.y.max = 100; ts.y.ticks.callback = v => v + '°';
+  tempChart = new Chart($('temp-chart'), {
+    type: 'line',
+    data: { labels: [], datasets: [
+      { label: 'BTMS 배터리',     data: [], borderColor: C.cool,     backgroundColor: C.cool + '20',     borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true },
+      { label: '냉각 없는 배터리', data: [], borderColor: C.critical, backgroundColor: C.critical + '20', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true },
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, thresholds: { lines: tempLines() } },
+      scales: ts,
+    }
+  });
+
+  const es = baseScales();
+  es.y.min = 0; es.y.max = 100; es.y.ticks.callback = v => v + '%';
+  ceffChart = new Chart($('ceff-chart'), {
+    type: 'line',
+    data: { labels: [], datasets: [
+      { label: 'BTMS',     data: [], borderColor: C.cool,     backgroundColor: C.cool + '20',     borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true },
+      { label: '냉각 없음', data: [], borderColor: C.critical, backgroundColor: C.critical + '14', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true },
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false } },
+      scales: es,
+    }
+  });
+}
+
+function applyChartTheme() {
+  Chart.defaults.color = C.textDim;
+  [tempChart, ceffChart].forEach(ch => {
+    if (!ch) return;
+    ch.options.scales.x.grid.color   = C.grid;
+    ch.options.scales.y.grid.color   = C.grid;
+    ch.options.scales.x.ticks.color  = C.textDim;
+    ch.options.scales.y.ticks.color  = C.textDim;
+    ch.options.scales.x.title.color  = C.textDim;
+    ch.data.datasets[0].borderColor  = C.cool;
+    ch.data.datasets[1].borderColor  = C.critical;
+  });
+  tempChart.data.datasets[0].backgroundColor = C.cool + '20';
+  tempChart.data.datasets[1].backgroundColor = C.critical + '20';
+  ceffChart.data.datasets[0].backgroundColor = C.cool + '20';
+  ceffChart.data.datasets[1].backgroundColor = C.critical + '14';
+  tempChart.options.plugins.thresholds.lines = tempLines();
+  tempChart.update('none');
+  ceffChart.update('none');
+}
+
+function updateCharts() {
+  if (!tempChart) return;
+  const H = state.tempHistory, E = state.ceffHistory;
+  tempChart.data.labels = [...H.labels];
+  tempChart.data.datasets[0].data = [...H.btms];
+  tempChart.data.datasets[1].data = [...H.none];
+  tempChart.update('none');
+  ceffChart.data.labels = [...H.labels];
+  ceffChart.data.datasets[0].data = [...E.btms];
+  ceffChart.data.datasets[1].data = [...E.none];
+  ceffChart.update('none');
+}
+
+function paintLegend() {
+  $('lg-temp-btms').style.background = C.cool;
+  $('lg-temp-none').style.background = C.critical;
+  $('lg-warn').style.background = C.warn;
+  $('lg-crit').style.background = C.danger;
+}
+
+/* ── INPUT CONTROLS ─────────────────────────────────────────────────────── */
+function syncInputLabels() {
+  const cap = input.capacity;
+  // C-rate ≈ 충전 전력 / 용량.  P ≈ V·I,  C = P[kW] / 용량[kWh]
+  const cRate = (V_PACK * input.current / 1000) / cap;
+  $('in-cur-val').textContent = input.current + ' A';
+  $('in-cur-sub').textContent = '≈ ' + cRate.toFixed(1) + ' C';
+  $('in-amb-val').textContent = input.ambient + ' °C';
+  $('in-dur-val').textContent = input.durationMin + ' 분';
+  $('in-dur-sub').textContent = '시뮬레이션 구간 = ' + maxTime() + '초';
+  $('in-cap-val').textContent = cap + ' kWh';
+  const mc = Math.round(thermalMass(cap) / 1000);
+  const r  = Math.round(rInternal(cap, T_OPT) * 1000);
+  $('in-cap-sub').textContent = `m·c ≈ ${mc} kJ/K · R ≈ ${r} mΩ`;
+  $('time-end').textContent = input.durationMin + '분';
+}
+
+function bindSlider(id, key, after) {
+  $(id).addEventListener('input', e => {
+    input[key] = +e.target.value;
+    syncInputLabels();
+    if (after) after();
+    if (!state.running) { syncInitialTemps(); updateUI(); }
+  });
+}
+
+// 정지 상태에서 입력을 바꾸면 초기 온도(=외부 온도)를 즉시 반영
+function syncInitialTemps() {
+  if (state.t === 0) {
+    [state.btms, state.none].forEach(p => {
+      p.temp = input.ambient; p.maxT = input.ambient; p.avgT = input.ambient;
+    });
+  }
+}
+
+bindSlider('in-cur', 'current');
+bindSlider('in-amb', 'ambient');
+bindSlider('in-dur', 'durationMin');
+bindSlider('in-cap', 'capacity');
+
+/* ── CONTROLS ───────────────────────────────────────────────────────────── */
+function setSpeed(s) {
+  state.speed = s;
+  [1, 2, 4, 8].forEach(n => $('spd-' + n).classList.toggle('is-active', n === s));
+}
+
+function startSim() {
+  if (state.running || state.t >= maxTime()) return;
+  state.running = true;
+  $('btn-play').textContent = '⏸ 일시정지';
+  $('btn-play').classList.add('is-running');
+  state.timer = setInterval(() => {
+    if (state.t >= maxTime()) { stopSim(); return; }
+    simStep(state.speed);
+    updateUI();
+  }, TICK_MS);
+}
+
+function pauseSimSilent() {
+  state.running = false;
+  clearInterval(state.timer);
+}
+function pauseSim() {
+  pauseSimSilent();
+  $('btn-play').textContent = '▶ 재개';
+  $('btn-play').classList.remove('is-running');
+}
+function stopSim() {
+  pauseSimSilent();
+  $('btn-play').textContent = '▶ 완료';
+  $('btn-play').classList.remove('is-running');
+  const b = state.btms;
+  addEvent('btms',
+    `✔ ${fmtT(state.t)}: 충전 종료 — 최고 ${Math.round(b.maxT)}°C · 평균 ${Math.round(b.avgT)}°C`,
+    'normal');
+  updateUI();
+}
+
+function resetSim() {
+  pauseSim();
+  state.t = 0;
+  state.soc = SOC_START;
+  state.btms = newPack(true);
+  state.none = newPack(false);
+  state.tempHistory = { btms: [], none: [], labels: [] };
+  state.ceffHistory = { btms: [], none: [] };
+  $('log-btms').innerHTML = '<div class="event-item">시스템 대기 중...</div>';
+  $('log-none').innerHTML = '<div class="event-item">시스템 대기 중...</div>';
+  $('btn-play').textContent = '▶ 시작';
+  $('btn-play').classList.remove('is-running');
+  updateUI();
+}
+
+$('btn-play').addEventListener('click', () => { state.running ? pauseSim() : startSim(); });
+$('btn-reset').addEventListener('click', resetSim);
+[1, 2, 4, 8].forEach(n =>
+  $('spd-' + n).addEventListener('click', () => setSpeed(n))
+);
+
+// 편의 기능: 키보드 단축키 (Space = 시작/정지, R = 초기화)
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); state.running ? pauseSim() : startSim(); }
+  else if (e.key === 'r' || e.key === 'R') resetSim();
+});
+
+/* ── THEME TOGGLE ───────────────────────────────────────────────────────── */
+function currentTheme() {
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+}
+function setThemeLabel() {
+  $('btn-theme').textContent = currentTheme() === 'dark' ? '☀ 라이트' : '🌙 다크';
+}
+function refreshTheme() {
+  refreshPalette();
+  applyChartTheme();
+  paintLegend();
+  updateUI();
+  setThemeLabel();
+}
+function applyTheme(theme, persist) {
+  document.documentElement.dataset.theme = theme;
+  if (persist) { try { localStorage.setItem('theme', theme); } catch (e) {} }
+  refreshTheme();
+}
+$('btn-theme').addEventListener('click',
+  () => applyTheme(currentTheme() === 'dark' ? 'light' : 'dark', true));
+
+// 사용자가 직접 고르지 않았을 때만 OS 설정 변화를 따라감
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+  let saved = null;
+  try { saved = localStorage.getItem('theme'); } catch (_) {}
+  if (!saved) applyTheme(e.matches ? 'dark' : 'light', false);
+});
+
+/* ── INIT ───────────────────────────────────────────────────────────────── */
+syncInputLabels();
+initCharts();
+paintLegend();
+updateUI();
+setThemeLabel();
+</script>
+</body>
+</html>
