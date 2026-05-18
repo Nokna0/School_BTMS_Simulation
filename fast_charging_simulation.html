@@ -391,7 +391,7 @@ input[type=range] {
   <div class="card">
     <div class="bar-bg"><div class="bar-fill" id="time-progress" style="width:0%"></div></div>
     <div class="time-row">
-      <span>0분</span><span id="time-display">경과: 0초　·　충전률 10%</span><span id="time-end">45분</span>
+      <span>0분</span><span id="time-display">경과: 0초 · 충전률 10%</span><span id="time-end">45분</span>
     </div>
   </div>
 
@@ -445,7 +445,7 @@ input[type=range] {
   </div>
 
   <div class="card">
-    <div class="label">냉각 효율 변화 (%)　η_cool = Q_제거 / Q_발생 (누적)</div>
+    <div class="label">냉각 효율 변화 (%) η_cool = Q_제거 / Q_발생 (누적)</div>
     <div class="chart-box chart-box--sm">
       <canvas id="ceff-chart" role="img" aria-label="냉각 효율 변화 차트">냉각 효율: BTMS 배터리는 발생열의 대부분을 제거, 냉각 없는 배터리는 0%.</canvas>
     </div>
@@ -677,7 +677,7 @@ function updateUI() {
 
   $('time-progress').style.width = Math.min(100, state.t / MAX * 100) + '%';
   $('time-display').textContent  =
-    `경과: ${fmtT(state.t)}　·　충전률 ${Math.round(state.soc * 100)}%`;
+    `경과: ${fmtT(state.t)} · 충전률 ${Math.round(state.soc * 100)}%`;
   $('time-end').textContent = input.durationMin + '분';
 
   // BTMS pack
