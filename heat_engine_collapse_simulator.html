@@ -14,6 +14,7 @@
    ════════════════════════════════════════════════════════════════════════ */
 :root {
   color-scheme: light;
+  --font-ui:       Dotum, '돋움', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
   --c-bg:          #eceff5;
   --c-surface:     #ffffff;
   --c-surface-2:   #e6eaf1;
@@ -68,7 +69,7 @@
 body {
   background: var(--c-bg);
   color: var(--c-text);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-ui);
   font-size: 13px;
   padding: 16px;
   max-width: 1080px;
@@ -148,7 +149,7 @@ canvas {
 
 /* ─── BUTTONS ─────────────────────────────────────────────────────────── */
 button {
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-ui);
   font-size: 12px;
   letter-spacing: 1px;
   border-radius: 6px;
@@ -185,7 +186,7 @@ button {
   border: 1px solid var(--c-border);
   background: transparent;
   color: var(--c-text-dim);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-ui);
   font-size: 11px;
   letter-spacing: 1px;
   border-radius: 6px;
@@ -354,6 +355,9 @@ input[type=range] {
 "use strict";
 
 const $ = id => document.getElementById(id);
+
+/* 돋움 기반 universal 폰트 (영문·한글 공용) — 캔버스 텍스트 공통 사용 */
+const FONT = "Dotum, '돋움', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif";
 
 /* ── PHYSICS CONSTANTS ──────────────────────────────────────────────────── */
 const THERMAL_MASS    = 36000; // J/K  (≈72 kg cast iron, Cp ≈ 500 J/kg·K)
@@ -689,7 +693,7 @@ function drawChart() {
     ctx.lineTo(pad.l + cW, cy(r.T));
     ctx.stroke();
     ctx.fillStyle = r.c;
-    ctx.font      = "bold 18px 'Courier New', monospace";
+    ctx.font      = `bold 18px ${FONT}`;
     ctx.textAlign = "right";
     ctx.fillText(r.T + "°C", pad.l + cW - 5, cy(r.T) - 6);
   });
@@ -702,7 +706,7 @@ function drawChart() {
 
   // Axis labels
   ctx.fillStyle = C.accent;
-  ctx.font      = "bold 18px 'Courier New', monospace";
+  ctx.font      = `bold 18px ${FONT}`;
   ctx.textAlign = "right";
   [50, 100, 150, 200].forEach(v => ctx.fillText(v, pad.l - 8, cy(v) + 6));
 
@@ -896,7 +900,7 @@ function drawEngine() {
   ctx.fillStyle = S.oilDegraded ? "#280808" : "#0a1420";
   ctx.beginPath(); ctx.roundRect(16, 256, 130, 16, 2); ctx.fill();
   ctx.fillStyle = S.oilDegraded ? "#ef5350" : "#1e3a5a";
-  ctx.font = "7px 'Courier New', monospace"; ctx.textAlign = "center";
+  ctx.font = `7px ${FONT}`; ctx.textAlign = "center";
   ctx.fillText(S.oilDegraded ? "OIL DEGRADED" : "OIL LEVEL OK", CX, 267);
 
   // SEIZED overlay
@@ -909,7 +913,7 @@ function drawEngine() {
     ctx.globalAlpha = 1;
     ctx.fillStyle = "#0c0808";
     ctx.beginPath(); ctx.roundRect(30, 126, 102, 30, 4); ctx.fill();
-    ctx.fillStyle = "#f44336"; ctx.font = "bold 14px 'Courier New', monospace"; ctx.textAlign = "center";
+    ctx.fillStyle = "#f44336"; ctx.font = `bold 14px ${FONT}`; ctx.textAlign = "center";
     ctx.fillText("SEIZED", CX, 146);
   }
 
