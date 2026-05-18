@@ -1,244 +1,493 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BTMS Heat-Engine Comparison Simulator</title>
+<style>
+/* ════════════════════════════════════════════════════════════════════════
+   THEME TOKENS  —  identical palette to heat_engine_collapse_simulator.html
+   :root        → light mode (default)
+   prefers dark → dark mode (only when the OS/browser asks for it)
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  color-scheme: light;
+  --font-ui:       Dotum, '돋움', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  --c-bg:          #eceff5;
+  --c-surface:     #ffffff;
+  --c-surface-2:   #e6eaf1;
+  --c-border:      #d3d9e6;
+  --c-grid:        #e2e7f0;
+  --c-text:        #000000;
+  --c-text-dim:    #000000;
+  --c-text-faint:  #000000;
+  --c-accent:      #000000;
+  --c-cool:        #0277bd;
+  --c-success:     #2e7d32;
+  --c-amber:       #b58900;
+  --c-warn:        #e65100;
+  --c-danger:      #d84315;
+  --c-critical:    #c62828;
+  --c-warn-bg:     #fff3e0;
+  --c-danger-bg:   #ffece4;
+  --c-critical-bg: #ffe5e5;
+  --c-success-bg:  #e8f5e9;
+  --c-info-bg:     #e4f1fb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --c-bg:          #060a14;
+    --c-surface:     #0a0e1c;
+    --c-surface-2:   #040710;
+    --c-border:      #141e38;
+    --c-grid:        #0d1428;
+    --c-text:        #ffffff;
+    --c-text-dim:    #ffffff;
+    --c-text-faint:  #ffffff;
+    --c-accent:      #ffffff;
+    --c-cool:        #4fc3f7;
+    --c-success:     #4caf50;
+    --c-amber:       #ffc107;
+    --c-warn:        #ff9800;
+    --c-danger:      #ff5722;
+    --c-critical:    #f44336;
+    --c-warn-bg:     #1a1200;
+    --c-danger-bg:   #180a06;
+    --c-critical-bg: #180404;
+    --c-success-bg:  #0c1a0d;
+    --c-info-bg:     #071520;
+  }
+}
+
+/* ─── BASE LAYOUT ─────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  padding: 16px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.col { display: flex; flex-direction: column; gap: 10px; }
+
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 14px;
+  position: relative;
+}
+.card.is-danger  { border-color: var(--c-critical); }
+.card.is-warning { border-color: var(--c-warn); }
+
+.label {
+  font-size: 11px;
+  color: var(--c-accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+/* ─── HEADER ──────────────────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--c-grid);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+.topbar__title    { font-size: 14px; font-weight: bold; letter-spacing: 3px; color: var(--c-accent); }
+.topbar__subtitle { font-size: 10px; color: var(--c-text-dim); letter-spacing: 1px; margin-top: 4px; }
+
+/* ─── CONTROLS ────────────────────────────────────────────────────────── */
+.controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+button {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 1px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-main {
+  padding: 9px 16px;
+  border: 1px solid var(--c-success);
+  background: transparent;
+  color: var(--c-success);
+  opacity: .8;
+}
+.btn-main.is-running { opacity: 1; font-weight: bold; }
+
+.btn-reset {
+  padding: 9px 14px;
+  border: 1px solid var(--c-text-dim);
+  background: transparent;
+  color: var(--c-text-dim);
+}
+
+.speed-btn {
+  padding: 7px 11px;
+  border: 1px solid var(--c-border);
+  background: transparent;
+  color: var(--c-text-dim);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  letter-spacing: 1px;
+  border-radius: 6px;
+}
+.speed-btn.is-active {
+  border-color: var(--c-cool);
+  color: var(--c-cool);
+}
+
+/* ─── PROGRESS ────────────────────────────────────────────────────────── */
+.bar-bg {
+  background: var(--c-surface-2);
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--c-cool);
+  transition: width .1s linear;
+}
+.time-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--c-text-faint);
+  margin-top: 5px;
+}
+
+/* ─── ENGINE CARDS ────────────────────────────────────────────────────── */
+.engines-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.engine-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.engine-name { font-size: 13px; font-weight: bold; }
+
+.badge {
+  font-size: 11px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid;
+}
+.badge.is-info    { color: var(--c-cool);     border-color: var(--c-cool);     background: var(--c-info-bg); }
+.badge.is-success { color: var(--c-success);  border-color: var(--c-success);  background: var(--c-success-bg); }
+.badge.is-warn    { color: var(--c-warn);     border-color: var(--c-warn);     background: var(--c-warn-bg); }
+.badge.is-danger  { color: var(--c-critical); border-color: var(--c-critical); background: var(--c-critical-bg); }
+
+.engine-canvas { width: 100%; height: 160px; display: block; }
+
+.metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.metric {
+  background: var(--c-surface-2);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.m-label { font-size: 11px; color: var(--c-text-dim); }
+.m-val   { font-size: 21px; font-weight: bold; margin-top: 3px; color: var(--c-text); }
+
+.event-log {
+  background: var(--c-surface-2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  height: 76px;
+  overflow-y: auto;
+  font-size: 12px;
+  margin-top: 10px;
+  color: var(--c-text-dim);
+}
+.event-item      { padding: 1px 0; }
+.event-item.warn { color: var(--c-warn); }
+.event-item.crit { color: var(--c-critical); }
+
+.failure-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(198, 40, 40, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--c-critical);
+  border-radius: 8px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .5s;
+}
+
+/* ─── CHART CARDS ─────────────────────────────────────────────────────── */
+.legend-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--c-text-dim);
+}
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-dot  { width: 11px; height: 11px; border-radius: 2px; }
+
+.chart-box { position: relative; width: 100%; height: 230px; }
+.chart-box--sm { height: 170px; }
+</style>
+</head>
+<body>
 
 <h2 class="sr-only">BTMS 유무에 따른 열기관 시뮬레이션 — 냉각 미적용 시 시스템 붕괴 과정 비교</h2>
-<style>
-  * { box-sizing: border-box; }
-  body { margin: 0; }
-  .sim-root { font-family: var(--font-sans); color: var(--color-text-primary); padding: 1rem 0; }
-  .sim-header { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 1rem; }
-  .engines-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-  .engine-card {
-    background: var(--color-background-primary);
-    border: 0.5px solid var(--color-border-tertiary);
-    border-radius: var(--border-radius-lg);
-    padding: 12px;
-    position: relative;
-    overflow: hidden;
-  }
-  .engine-card.danger { border-color: #E24B4A; }
-  .engine-card.warning { border-color: #BA7517; }
-  .engine-label { font-size: 13px; font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 400; }
-  .badge-blue { background: #E6F1FB; color: #185FA5; }
-  .badge-red { background: #FCEBEB; color: #A32D2D; }
-  .badge-green { background: #EAF3DE; color: #3B6D11; }
-  .badge-amber { background: #FAEEDA; color: #854F0B; }
-  @media (prefers-color-scheme: dark) {
-    .badge-blue { background: #0C447C; color: #B5D4F4; }
-    .badge-red { background: #501313; color: #F7C1C1; }
-    .badge-green { background: #173404; color: #C0DD97; }
-    .badge-amber { background: #412402; color: #FAC775; }
-  }
-  .engine-canvas { width: 100%; height: 160px; display: block; }
-  .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
-  .metric { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 8px 10px; }
-  .metric-label { font-size: 11px; color: var(--color-text-secondary); }
-  .metric-value { font-size: 17px; font-weight: 500; margin-top: 2px; }
-  .event-log {
-    background: var(--color-background-secondary);
-    border-radius: var(--border-radius-md);
-    padding: 8px 10px;
-    height: 68px;
-    overflow-y: auto;
-    font-size: 11px;
-    margin-top: 8px;
-    color: var(--color-text-secondary);
-  }
-  .event-item { padding: 1px 0; }
-  .event-item.warn { color: #BA7517; }
-  .event-item.crit { color: #A32D2D; }
-  .chart-area { margin-bottom: 12px; }
-  .chart-title { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; }
-  .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  button {
-    font-size: 12px; padding: 6px 14px; border-radius: var(--border-radius-md);
-    border: 0.5px solid var(--color-border-secondary);
-    background: transparent; color: var(--color-text-primary);
-    cursor: pointer;
-  }
-  button:hover { background: var(--color-background-secondary); }
-  button:active { transform: scale(0.98); }
-  button.primary { border-color: #185FA5; color: #185FA5; }
-  button.primary:hover { background: #E6F1FB; }
-  .speed-label { font-size: 12px; color: var(--color-text-secondary); }
-  .progress-bar { height: 4px; background: var(--color-background-secondary); border-radius: 2px; margin-bottom: 4px; overflow: hidden; }
-  .progress-fill { height: 100%; border-radius: 2px; transition: width 0.1s linear; }
-  .failure-overlay {
-    position: absolute; inset: 0;
-    background: rgba(162, 45, 45, 0.12);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 500; color: #A32D2D;
-    border-radius: var(--border-radius-lg);
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.5s;
-  }
-  .divider { height: 0.5px; background: var(--color-border-tertiary); margin: 12px 0; }
-  .legend-row { display: flex; gap: 16px; margin-bottom: 6px; font-size: 11px; color: var(--color-text-secondary); }
-  .legend-item { display: flex; align-items: center; gap: 4px; }
-  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
-</style>
 
-<div class="sim-root">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+<div class="col">
+
+  <header class="topbar">
     <div>
-      <div style="font-size:15px; font-weight:500;">열기관 열 붕괴 시뮬레이션</div>
-      <div class="sim-header">BTMS 유무에 따른 온도 상승 및 시스템 붕괴 비교</div>
+      <div class="topbar__title">BTMS HEAT-ENGINE COMPARISON</div>
+      <div class="topbar__subtitle">열역학 1법칙(ΔU = Q, W≈0): m·c·(dT/dt) = Q_gen − Q_loss  ·  카르노 효율: η = 1 − T_C/T_H</div>
     </div>
     <div class="controls">
-      <span class="speed-label">배속</span>
-      <select id="speed-select" style="font-size:12px; padding:5px 8px; border-radius:var(--border-radius-md); border:0.5px solid var(--color-border-secondary); background:transparent; color:var(--color-text-primary); cursor:pointer;">
-        <option value="1">1×</option>
-        <option value="2" selected>2×</option>
-        <option value="4">4×</option>
-        <option value="8">8×</option>
-      </select>
-      <button class="primary" id="btn-play">▶ 시작</button>
-      <button id="btn-reset">↺ 초기화</button>
+      <button class="speed-btn"           id="spd-1" data-speed="1">1×</button>
+      <button class="speed-btn is-active"  id="spd-2" data-speed="2">2×</button>
+      <button class="speed-btn"           id="spd-4" data-speed="4">4×</button>
+      <button class="speed-btn"           id="spd-8" data-speed="8">8×</button>
+      <button class="btn-main" id="btn-play">▶ 시작</button>
+      <button class="btn-reset" id="btn-reset">↺ 초기화</button>
     </div>
-  </div>
+  </header>
 
-  <div class="progress-bar">
-    <div class="progress-fill" id="time-progress" style="width:0%; background:#378ADD;"></div>
-  </div>
-  <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--color-text-tertiary); margin-bottom:10px;">
-    <span>0초</span><span id="time-display">경과: 0초</span><span>600초</span>
+  <div class="card">
+    <div class="bar-bg"><div class="bar-fill" id="time-progress" style="width:0%"></div></div>
+    <div class="time-row">
+      <span>0초</span><span id="time-display">경과: 0초</span><span>600초</span>
+    </div>
   </div>
 
   <div class="engines-row">
-    <div class="engine-card" id="card-btms">
-      <div class="engine-label">
-        <span>BTMS 적용 엔진</span>
-        <span class="badge badge-blue" id="status-btms">정상 운전</span>
+
+    <div class="card" id="card-btms">
+      <div class="engine-head">
+        <span class="engine-name">BTMS 적용 엔진</span>
+        <span class="badge is-info" id="status-btms">정상 운전</span>
       </div>
       <canvas class="engine-canvas" id="canvas-btms"></canvas>
-      <div class="metrics-grid">
-        <div class="metric"><div class="metric-label">엔진 온도</div><div class="metric-value" id="temp-btms" style="color:#185FA5;">85°C</div></div>
-        <div class="metric"><div class="metric-label">열효율</div><div class="metric-value" id="eff-btms" style="color:#3B6D11;">28%</div></div>
-        <div class="metric"><div class="metric-label">냉각 부하</div><div class="metric-value" id="cool-btms" style="color:#185FA5;">—</div></div>
-        <div class="metric"><div class="metric-label">출력 전력</div><div class="metric-value" id="pow-btms">—</div></div>
+      <div class="metrics">
+        <div class="metric"><div class="m-label">엔진 온도</div><div class="m-val" id="temp-btms">85°C</div></div>
+        <div class="metric"><div class="m-label">카르노 효율</div><div class="m-val" id="eff-btms">0%</div></div>
+        <div class="metric"><div class="m-label">냉각 부하</div><div class="m-val" id="cool-btms">—</div></div>
+        <div class="metric"><div class="m-label">출력 전력</div><div class="m-val" id="pow-btms">—</div></div>
       </div>
-      <div class="event-log" id="log-btms"><div class="event-item" style="color:var(--color-text-secondary)">시스템 대기 중...</div></div>
-      <div class="failure-overlay" id="fail-btms">시스템 정상</div>
+      <div class="event-log" id="log-btms"><div class="event-item">시스템 대기 중...</div></div>
+      <div class="failure-overlay" id="fail-btms"></div>
     </div>
-    <div class="engine-card" id="card-none">
-      <div class="engine-label">
-        <span>냉각 없는 엔진</span>
-        <span class="badge badge-green" id="status-none">정상 운전</span>
+
+    <div class="card" id="card-none">
+      <div class="engine-head">
+        <span class="engine-name">냉각 없는 엔진</span>
+        <span class="badge is-success" id="status-none">정상 운전</span>
       </div>
       <canvas class="engine-canvas" id="canvas-none"></canvas>
-      <div class="metrics-grid">
-        <div class="metric"><div class="metric-label">엔진 온도</div><div class="metric-value" id="temp-none">85°C</div></div>
-        <div class="metric"><div class="metric-label">열효율</div><div class="metric-value" id="eff-none">28%</div></div>
-        <div class="metric"><div class="metric-label">냉각 부하</div><div class="metric-value" id="cool-none" style="color:var(--color-text-tertiary);">없음</div></div>
-        <div class="metric"><div class="metric-label">출력 전력</div><div class="metric-value" id="pow-none">—</div></div>
+      <div class="metrics">
+        <div class="metric"><div class="m-label">엔진 온도</div><div class="m-val" id="temp-none">85°C</div></div>
+        <div class="metric"><div class="m-label">카르노 효율</div><div class="m-val" id="eff-none">0%</div></div>
+        <div class="metric"><div class="m-label">냉각 부하</div><div class="m-val" id="cool-none">없음</div></div>
+        <div class="metric"><div class="m-label">출력 전력</div><div class="m-val" id="pow-none">—</div></div>
       </div>
-      <div class="event-log" id="log-none"><div class="event-item" style="color:var(--color-text-secondary)">시스템 대기 중...</div></div>
+      <div class="event-log" id="log-none"><div class="event-item">시스템 대기 중...</div></div>
       <div class="failure-overlay" id="fail-none"></div>
+    </div>
+
+  </div>
+
+  <div class="card">
+    <div class="label">온도 변화 추이 (°C)</div>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-dot" id="lg-temp-btms"></div>BTMS 엔진</div>
+      <div class="legend-item"><div class="legend-dot" id="lg-temp-none"></div>냉각 없는 엔진</div>
+      <div class="legend-item"><div class="legend-dot" id="lg-warn"></div>경고 130°C</div>
+      <div class="legend-item"><div class="legend-dot" id="lg-crit"></div>위험 200°C</div>
+    </div>
+    <div class="chart-box">
+      <canvas id="temp-chart" role="img" aria-label="BTMS 유무에 따른 온도 변화 추이 차트">온도 변화 추이: BTMS 적용 엔진은 안정적, 냉각 없는 엔진은 급격히 상승하여 시스템 붕괴.</canvas>
     </div>
   </div>
 
-  <div class="divider"></div>
-  <div class="chart-title">온도 변화 추이 (°C)</div>
-  <div class="legend-row">
-    <div class="legend-item"><div class="legend-dot" style="background:#378ADD;"></div>BTMS 엔진</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#E24B4A;"></div>냉각 없는 엔진</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#EF9F27; border:1px dashed #BA7517;"></div>경고 임계값 (130°C)</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#A32D2D; border:1px dashed #501313;"></div>위험 임계값 (200°C)</div>
-  </div>
-  <div style="position:relative; width:100%; height:200px;">
-    <canvas id="temp-chart" role="img" aria-label="BTMS 유무에 따른 온도 변화 추이 차트">온도 변화 추이: BTMS 적용 엔진은 안정적, 냉각 없는 엔진은 급격히 상승하여 시스템 붕괴.</canvas>
+  <div class="card">
+    <div class="label">카르노 효율 변화 (%)　η = 1 − T_C/T_H</div>
+    <div class="chart-box chart-box--sm">
+      <canvas id="eff-chart" role="img" aria-label="카르노 효율 변화 차트">효율 변화: 냉각 없는 엔진은 붕괴 시 출력이 0으로 정지.</canvas>
+    </div>
   </div>
 
-  <div class="divider"></div>
-  <div class="chart-title">열효율 변화 (%)</div>
-  <div style="position:relative; width:100%; height:150px;">
-    <canvas id="eff-chart" role="img" aria-label="열효율 변화 차트">열효율 변화: 냉각 없는 엔진은 온도 상승에 따라 효율이 저하되다가 0에 수렴.</canvas>
-  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-  
-const MAX_TIME = 600; // 시간 재는 곳 시간 재는 곳 시간 재는 곳 시간 재는 곳 시간 재는 곳 시간 재는 곳 
-const TICK_MS = 100;
-const DT = 1;
+"use strict";
 
+const $ = id => document.getElementById(id);
+
+/* 돋움 기반 universal 폰트 (영문·한글 공용) — 캔버스/Chart.js 공통 사용 */
+const FONT = "Dotum, '돋움', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif";
+
+/* ── PHYSICS CONSTANTS ──────────────────────────────────────────────────── */
+const MAX_TIME = 600;   // s   simulated timeline
+const TICK_MS  = 100;   // ms  wall-clock per UI tick
+const DT       = 1;     // s   per physics step
+const T_AMB    = 25;    // °C  주위(저열원) 온도
+const T_OPT    = 88;    // °C  BTMS 목표 운전 온도
+const T_WARN   = 130;   // °C  윤활유 열화 경고
+const T_CRIT   = 200;   // °C  금속 변형 위험
+const T_FAIL   = 260;   // °C  열폭주 붕괴 임계
+const KELVIN   = 273.15;// °C → K
+
+/* 카르노 효율 — 2015 개정 고급물리(열역학):
+   열기관의 이론적 최대 효율  η = 1 − T_C / T_H   (절대온도 K, 제2법칙)
+   T_H = 엔진(고열원),  T_C = 주위(저열원).  실제효율 ≤ η_Carnot. */
+function carnotEff(tempC) {
+  const T_H = tempC + KELVIN;
+  const T_C = T_AMB + KELVIN;
+  return Math.max(0, 1 - T_C / T_H);   // 0..1 (분수)
+}
+
+/* ── THEME PALETTE ──────────────────────────────────────────────────────────
+   Resolve CSS variables once for canvas/Chart.js, refresh on theme change. */
+const PALETTE_VARS = {
+  surface:   '--c-surface',
+  grid:      '--c-grid',
+  border:    '--c-border',
+  accent:    '--c-accent',
+  text:      '--c-text',
+  textDim:   '--c-text-dim',
+  textFaint: '--c-text-faint',
+  cool:      '--c-cool',
+  success:   '--c-success',
+  amber:     '--c-amber',
+  warn:      '--c-warn',
+  danger:    '--c-danger',
+  critical:  '--c-critical',
+};
+const C = {};
+function refreshPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k in PALETTE_VARS) C[k] = cs.getPropertyValue(PALETTE_VARS[k]).trim();
+}
+refreshPalette();
+
+/* ── SIMULATION STATE ───────────────────────────────────────────────────── */
 const state = {
-  t: 0, running: false, timer: null,
-  btms: { temp: 85, eff: 0.28, failed: false, failTime: null, events: [] },
-  none: { temp: 85, eff: 0.28, failed: false, failTime: null, events: [] },
+  t: 0, running: false, timer: null, speed: 2,
+  btms: { temp: 85, eff: carnotEff(85), failed: false, failTime: null, _coolEvent: false },
+  none: { temp: 85, eff: carnotEff(85), failed: false, failTime: null,
+          _warn130: false, _crit170: false, _crit200: false },
   tempHistory: { btms: [], none: [], labels: [] },
-  effHistory: { btms: [], none: [] },
+  effHistory:  { btms: [], none: [] },
 };
 
-const T_WARN = 130, T_CRIT = 200, T_FAIL = 260, T_OPT = 88;
-const T_AMB = 25;
-
+/* ── PHYSICS STEP ───────────────────────────────────────────────────────────
+   집중정수 열수지(열역학 1법칙, W≈0):  m·c·dT/dt = Q_gen − Q_loss
+   계수들은 단위 열용량으로 정규화된 값. 효율은 카르노 식으로 계산. */
 function simStep(speed) {
-  const steps = speed;
-  for (let i = 0; i < steps; i++) {
+  for (let i = 0; i < speed; i++) {
     if (state.t >= MAX_TIME) { stopSim(); return; }
     state.t += DT;
 
-    const s_btms = state.btms;
-    const s_none = state.none;
+    const b = state.btms, n = state.none;
 
-    if (!s_btms.failed) {
-      const err = s_btms.temp - T_OPT;
-      const cooling = 0.4 * err + 1.5;
+    // ── BTMS 적용 엔진: 능동 냉각으로 목표 온도 부근에서 평형 ──
+    if (!b.failed) {
+      const err     = b.temp - T_OPT;
+      const cooling = 0.4 * err + 1.5;                 // 냉각 부하 ∝ 온도 초과분
       const heatGen = 12 + Math.sin(state.t * 0.05) * 2;
-      s_btms.temp += (heatGen - cooling - 0.05 * (s_btms.temp - T_AMB)) * 0.08;
-      s_btms.temp = Math.max(T_AMB, s_btms.temp);
-      s_btms.eff = Math.max(0.05, 0.30 - 0.0005 * Math.max(0, s_btms.temp - 90));
+      b.temp += (heatGen - cooling - 0.05 * (b.temp - T_AMB)) * 0.08;
+      b.temp  = Math.max(T_AMB, b.temp);
+      b.eff   = carnotEff(b.temp);
+
+      if (b.temp > T_OPT + 5 && !b._coolEvent) {
+        b._coolEvent = true;
+        addEvent('btms', `✔ ${state.t}초: BTMS 냉각 부하 증가 — 온도 안정화`, 'normal');
+      }
     }
 
-    if (!s_none.failed) {
+    // ── 냉각 없는 엔진: 자연 방열만 → 열폭주 ──
+    //   자연 방열 Q_loss ∝ (T − T_주위)  [뉴턴 냉각]
+    //   130°C 이상에서 냉각수가 비등 → 증기막이 열전달을 최대 95%까지 차단
+    //   (collapse 시뮬레이터의 boiling penalty와 동일한 메커니즘).
+    //   방열이 무너지면 Q_gen > Q_loss 가 유지되어 온도가 발산한다.
+    if (!n.failed) {
       const heatGen = 14 + Math.sin(state.t * 0.05) * 2;
-      let dissipation = 0.12 * (s_none.temp - T_AMB);
-      if (s_none.temp > T_WARN) dissipation *= 0.7;
-      s_none.temp += (heatGen - dissipation) * 0.12;
-      s_none.eff = Math.max(0, 0.30 - 0.0012 * Math.max(0, s_none.temp - 90));
-      if (s_none.temp >= T_FAIL) {
-        s_none.failed = true;
-        s_none.failTime = state.t;
-        addEvent('none', `🔴 ${state.t}초: 완전 시스템 붕괴 — 열폭주 임계점 초과`, 'crit');
-      } else if (s_none.temp >= T_CRIT && !s_none._crit200) {
-        s_none._crit200 = true;
-        addEvent('none', `⚠ ${state.t}초: 200°C 돌파 — 금속 변형 시작`, 'crit');
-      } else if (s_none.temp >= 170 && !s_none._crit170) {
-        s_none._crit170 = true;
-        addEvent('none', `⚠ ${state.t}초: 170°C — 냉각수 비등, 실링 손상`, 'crit');
-      } else if (s_none.temp >= T_WARN && !s_none._warn130) {
-        s_none._warn130 = true;
-        addEvent('none', `⚡ ${state.t}초: 130°C — 윤활유 열화 시작`, 'warn');
+      let dissipation = 0.12 * (n.temp - T_AMB);       // 자연 방열 ∝ 온도차
+      if (n.temp > T_WARN) {
+        const boilFrac = Math.min(1, (n.temp - T_WARN) / 90);
+        dissipation *= Math.max(0.05, 1 - 0.95 * boilFrac);
       }
+      n.temp += (heatGen - dissipation) * 0.12;
+      n.temp  = Math.min(310, Math.max(T_AMB, n.temp));
+      n.eff   = carnotEff(n.temp);
 
-      if (s_btms.temp > T_OPT + 5 && !s_btms._coolEvent) {
-        s_btms._coolEvent = true;
-        addEvent('btms', `✔ ${state.t}초: BTMS 냉각 부하 증가 — 온도 안정화`, 'normal');
+      if (n.temp >= T_FAIL) {
+        n.failed = true; n.failTime = state.t; n.eff = 0;
+        addEvent('none', `🔴 ${state.t}초: 완전 시스템 붕괴 — 열폭주 임계점 초과`, 'crit');
+      } else if (n.temp >= T_CRIT && !n._crit200) {
+        n._crit200 = true;
+        addEvent('none', `⚠ ${state.t}초: 200°C 돌파 — 금속 변형 시작`, 'crit');
+      } else if (n.temp >= 170 && !n._crit170) {
+        n._crit170 = true;
+        addEvent('none', `⚠ ${state.t}초: 170°C — 냉각수 비등, 실링 손상`, 'crit');
+      } else if (n.temp >= T_WARN && !n._warn130) {
+        n._warn130 = true;
+        addEvent('none', `⚡ ${state.t}초: 130°C — 윤활유 열화 시작`, 'warn');
       }
     }
   }
 
-  if (state.t % 3 < DT * steps || state.t >= MAX_TIME) {
-    const label = state.t.toFixed(0);
-    state.tempHistory.labels.push(label);
-    state.tempHistory.btms.push(+state.btms.temp.toFixed(1));
-    state.tempHistory.none.push(state.none.failed ? state.none.temp : +state.none.temp.toFixed(1));
-    state.effHistory.btms.push(+(state.btms.eff * 100).toFixed(1));
-    state.effHistory.none.push(+(state.none.eff * 100).toFixed(1));
-    if (state.tempHistory.labels.length > 100) {
-      state.tempHistory.labels.shift();
-      state.tempHistory.btms.shift();
-      state.tempHistory.none.shift();
-      state.effHistory.btms.shift();
-      state.effHistory.none.shift();
+  if (state.t % 3 < DT * speed || state.t >= MAX_TIME) {
+    const H = state.tempHistory, E = state.effHistory;
+    H.labels.push(state.t.toFixed(0));
+    H.btms.push(+state.btms.temp.toFixed(1));
+    H.none.push(+state.none.temp.toFixed(1));
+    E.btms.push(+(state.btms.eff * 100).toFixed(1));
+    E.none.push(+(state.none.eff * 100).toFixed(1));
+    if (H.labels.length > 100) {
+      H.labels.shift(); H.btms.shift(); H.none.shift();
+      E.btms.shift(); E.none.shift();
     }
   }
 }
 
 function addEvent(which, msg, type) {
-  const log = document.getElementById('log-' + which);
+  const log = $('log-' + which);
   const div = document.createElement('div');
   div.className = 'event-item ' + (type === 'crit' ? 'crit' : type === 'warn' ? 'warn' : '');
   div.textContent = msg;
@@ -246,114 +495,111 @@ function addEvent(which, msg, type) {
   log.scrollTop = log.scrollHeight;
 }
 
+/* ── DASHBOARD ──────────────────────────────────────────────────────────── */
 function updateUI() {
-  const s_btms = state.btms, s_none = state.none;
-  const pct = Math.min(100, (state.t / MAX_TIME) * 100);
-  document.getElementById('time-progress').style.width = pct + '%';
-  document.getElementById('time-display').textContent = '경과: ' + state.t.toFixed(0) + '초';
+  const b = state.btms, n = state.none;
 
-  const btmsTemp = Math.round(s_btms.temp);
-  const noneTemp = s_none.failed ? '—' : Math.round(s_none.temp);
-  document.getElementById('temp-btms').textContent = btmsTemp + '°C';
-  document.getElementById('temp-none').textContent = s_none.failed ? '붕괴' : noneTemp + '°C';
+  $('time-progress').style.width = Math.min(100, state.t / MAX_TIME * 100) + '%';
+  $('time-display').textContent  = '경과: ' + state.t.toFixed(0) + '초';
 
-  const btmsEff = Math.round(s_btms.eff * 100);
-  const noneEff = s_none.failed ? 0 : Math.round(s_none.eff * 100);
-  document.getElementById('eff-btms').textContent = btmsEff + '%';
-  document.getElementById('eff-none').textContent = s_none.failed ? '0%' : noneEff + '%';
+  $('temp-btms').textContent = Math.round(b.temp) + '°C';
+  $('temp-none').textContent = n.failed ? '붕괴' : Math.round(n.temp) + '°C';
 
-  const cooling = Math.max(0, Math.round(0.4 * (s_btms.temp - T_OPT) + 1.5));
-  document.getElementById('cool-btms').textContent = cooling + ' kW';
-  document.getElementById('pow-btms').textContent = Math.round(btmsEff * 2.5) + ' kW';
-  document.getElementById('pow-none').textContent = s_none.failed ? '0 kW' : Math.round(noneEff * 2.5) + ' kW';
+  const btmsEff = Math.round(b.eff * 100);
+  const noneEff = n.failed ? 0 : Math.round(n.eff * 100);
+  $('eff-btms').textContent = btmsEff + '%';
+  $('eff-none').textContent = noneEff + '%';
 
-  const noneCard = document.getElementById('card-none');
-  const noneStatus = document.getElementById('status-none');
-  const failOverlay = document.getElementById('fail-none');
-  if (s_none.failed) {
-    noneCard.classList.add('danger');
-    noneStatus.textContent = '시스템 붕괴';
-    noneStatus.className = 'badge badge-red';
-    failOverlay.style.opacity = '1';
-    failOverlay.textContent = '⚠ 열폭주로 인한 시스템 붕괴';
-    document.getElementById('temp-none').style.color = '#A32D2D';
-    document.getElementById('eff-none').style.color = '#A32D2D';
-  } else if (s_none.temp > T_CRIT) {
-    noneCard.classList.add('danger');
-    noneStatus.textContent = '위험 — 즉각 대응 필요';
-    noneStatus.className = 'badge badge-red';
-    document.getElementById('temp-none').style.color = '#A32D2D';
-  } else if (s_none.temp > T_WARN) {
-    noneCard.classList.remove('danger');
-    noneCard.classList.add('warning');
-    noneStatus.textContent = '경고 — 과열 진행 중';
-    noneStatus.className = 'badge badge-amber';
-    document.getElementById('temp-none').style.color = '#BA7517';
+  const cooling = Math.max(0, Math.round(0.4 * (b.temp - T_OPT) + 1.5));
+  $('cool-btms').textContent = cooling + ' kW';
+  $('pow-btms').textContent  = Math.round(btmsEff * 2.5) + ' kW';
+  $('pow-none').textContent  = n.failed ? '0 kW' : Math.round(noneEff * 2.5) + ' kW';
+
+  // 색상 — 팔레트 토큰 사용 (라이트/다크 자동)
+  $('temp-btms').style.color = C.cool;
+  $('eff-btms').style.color  = C.success;
+  $('cool-btms').style.color = C.cool;
+
+  const card = $('card-none'), badge = $('status-none');
+  card.classList.remove('is-danger', 'is-warning');
+  if (n.failed) {
+    card.classList.add('is-danger');
+    badge.textContent = '시스템 붕괴'; badge.className = 'badge is-danger';
+    const ov = $('fail-none');
+    ov.style.opacity = '1';
+    ov.textContent = '⚠ 열폭주로 인한 시스템 붕괴';
+    $('temp-none').style.color = C.critical;
+    $('eff-none').style.color  = C.critical;
+  } else if (n.temp > T_CRIT) {
+    card.classList.add('is-danger');
+    badge.textContent = '위험 — 즉각 대응 필요'; badge.className = 'badge is-danger';
+    $('temp-none').style.color = C.critical;
+    $('eff-none').style.color  = C.text;
+  } else if (n.temp > T_WARN) {
+    card.classList.add('is-warning');
+    badge.textContent = '경고 — 과열 진행 중'; badge.className = 'badge is-warn';
+    $('temp-none').style.color = C.warn;
+    $('eff-none').style.color  = C.text;
+  } else {
+    badge.textContent = '정상 운전'; badge.className = 'badge is-success';
+    $('temp-none').style.color = C.text;
+    $('eff-none').style.color  = C.text;
   }
+  $('status-btms').className = 'badge is-info';
 
-  drawEngine('canvas-btms', s_btms.temp, false, s_btms.failed, state.t);
-  drawEngine('canvas-none', s_none.temp, true, s_none.failed, state.t);
+  drawEngine('canvas-btms', b.temp, false, b.failed, state.t);
+  drawEngine('canvas-none', n.temp, true,  n.failed, state.t);
   updateCharts();
 }
 
+/* ── ENGINE ANIMATION ───────────────────────────────────────────────────── */
 function getHeatColor(temp, alpha) {
-  const ratio = Math.min(1, Math.max(0, (temp - 60) / 220));
-  if (ratio < 0.33) {
-    const t = ratio / 0.33;
+  const r = Math.min(1, Math.max(0, (temp - 60) / 220));
+  if (r < 0.33) {
+    const t = r / 0.33;
     return `rgba(${Math.round(56 + 180 * t)},${Math.round(142 + 43 * t)},${Math.round(219 - 80 * t)},${alpha})`;
-  } else if (ratio < 0.66) {
-    const t = (ratio - 0.33) / 0.33;
+  } else if (r < 0.66) {
+    const t = (r - 0.33) / 0.33;
     return `rgba(${Math.round(236 + 8 * t)},${Math.round(185 - 90 * t)},${Math.round(139 - 80 * t)},${alpha})`;
-  } else {
-    const t = (ratio - 0.66) / 0.34;
-    return `rgba(${Math.round(244 - 80 * t)},${Math.round(95 - 70 * t)},${Math.round(59 - 40 * t)},${alpha})`;
   }
+  const t = (r - 0.66) / 0.34;
+  return `rgba(${Math.round(244 - 80 * t)},${Math.round(95 - 70 * t)},${Math.round(59 - 40 * t)},${alpha})`;
 }
 
 function drawEngine(canvasId, temp, showFail, failed, time) {
-  const canvas = document.getElementById(canvasId);
+  const canvas = $(canvasId);
   if (!canvas) return;
   const dpr = window.devicePixelRatio || 1;
   const W = canvas.offsetWidth || 280, H = 160;
   if (canvas.width !== W * dpr) { canvas.width = W * dpr; canvas.height = H * dpr; }
   const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
-  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
-  const textCol = isDark ? 'rgba(194,192,182,0.9)' : 'rgba(61,61,58,0.9)';
-  const borderCol = isDark ? 'rgba(194,192,182,0.2)' : 'rgba(61,61,58,0.15)';
-
+  const textCol   = C.textDim;
+  const borderCol = C.border;
   const cx = W / 2, cy = H / 2;
-  const heatCol = getHeatColor(temp, 0.7);
-  const heatColLight = getHeatColor(temp, 0.25);
 
-  ctx.fillStyle = heatColLight;
-  ctx.strokeStyle = heatCol;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.roundRect(cx - 50, cy - 45, 100, 90, 10);
-  ctx.fill(); ctx.stroke();
+  // Engine block
+  ctx.fillStyle   = getHeatColor(temp, 0.25);
+  ctx.strokeStyle = getHeatColor(temp, 0.7);
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath(); ctx.roundRect(cx - 50, cy - 45, 100, 90, 10); ctx.fill(); ctx.stroke();
 
-  const pulseAmp = failed ? 0 : Math.sin(time * 0.4) * 3;
-  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
-  ctx.beginPath();
-  ctx.roundRect(cx - 20, cy - 15, 40 + pulseAmp, 30 + pulseAmp, 5);
-  ctx.fill();
+  // Combustion chamber pulse
+  const pulse = failed ? 0 : Math.sin(time * 0.4) * 3;
+  ctx.fillStyle = getHeatColor(temp, 0.18);
+  ctx.beginPath(); ctx.roundRect(cx - 20, cy - 15, 40 + pulse, 30 + pulse, 5); ctx.fill();
 
+  // Shafts
   ctx.strokeStyle = getHeatColor(temp, 0.9);
   ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(cx - 60, cy);
-  ctx.lineTo(cx - 50, cy);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(cx + 50, cy);
-  ctx.lineTo(cx + 60, cy);
-  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 60, cy); ctx.lineTo(cx - 50, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 50, cy); ctx.lineTo(cx + 60, cy); ctx.stroke();
 
+  // Cooling fins (only on a non-collapsed engine)
   if (!showFail || !failed) {
-    ctx.strokeStyle = isDark ? 'rgba(55,138,221,0.6)' : 'rgba(24,95,165,0.5)';
+    ctx.strokeStyle = C.cool;
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(cx - 70, cy - 20); ctx.lineTo(cx - 60, cy - 20);
@@ -365,162 +611,234 @@ function drawEngine(canvasId, temp, showFail, failed, time) {
     ctx.stroke();
   }
 
+  // Heat particles
   if (!failed) {
-    const particleCount = Math.min(8, Math.floor((temp - 60) / 25));
-    for (let i = 0; i < particleCount; i++) {
+    const n = Math.min(8, Math.floor((temp - 60) / 25));
+    for (let i = 0; i < n; i++) {
       const px = cx - 45 + (i % 4) * 25 + Math.sin(time * 0.5 + i) * 6;
       const py = cy + 35 - ((time * 0.8 + i * 15) % 40);
-      const alpha = 0.3 + 0.4 * Math.sin(time * 0.3 + i);
-      ctx.fillStyle = getHeatColor(temp + 30, alpha);
-      ctx.beginPath();
-      ctx.arc(px, py, 3 + Math.sin(time * 0.4 + i) * 1.5, 0, Math.PI * 2);
-      ctx.fill();
+      const a  = 0.3 + 0.4 * Math.sin(time * 0.3 + i);
+      ctx.fillStyle = getHeatColor(temp + 30, a);
+      ctx.beginPath(); ctx.arc(px, py, 3 + Math.sin(time * 0.4 + i) * 1.5, 0, Math.PI * 2); ctx.fill();
     }
   }
 
+  // Collapse caption
   if (showFail && failed) {
-    ctx.fillStyle = 'rgba(162,45,45,0.15)';
+    ctx.fillStyle = 'rgba(198,40,40,0.16)';
     ctx.fillRect(0, 0, W, H);
-    const lines = ['──────', '시스템', '붕괴'];
-    ctx.fillStyle = '#A32D2D';
-    ctx.font = '500 13px sans-serif';
+    ctx.fillStyle = C.critical;
+    ctx.font = `bold 13px ${FONT}`;
     ctx.textAlign = 'center';
-    ctx.fillText('⚠ 열폭주 발생', cx, cy - 10);
-    ctx.font = '11px sans-serif';
-    ctx.fillStyle = isDark ? 'rgba(247,193,193,0.7)' : 'rgba(162,45,45,0.7)';
-    ctx.fillText('구조 파손 · 기능 정지', cx, cy + 10);
+    ctx.fillText('⚠ 열폭주 발생', cx, cy - 8);
+    ctx.font = `11px ${FONT}`;
+    ctx.fillText('구조 파손 · 기능 정지', cx, cy + 12);
   }
 
+  // Temperature scale bar
   const barW = W - 80, barX = 40, barY = H - 18;
-  const tempRatio = Math.min(1, (temp - T_AMB) / (T_FAIL - T_AMB));
+  const ratio = Math.min(1, (temp - T_AMB) / (T_FAIL - T_AMB));
   ctx.fillStyle = borderCol;
   ctx.beginPath(); ctx.roundRect(barX, barY, barW, 6, 3); ctx.fill();
-  ctx.fillStyle = getHeatColor(temp, 0.8);
-  ctx.beginPath(); ctx.roundRect(barX, barY, barW * tempRatio, 6, 3); ctx.fill();
+  ctx.fillStyle = getHeatColor(temp, 0.85);
+  ctx.beginPath(); ctx.roundRect(barX, barY, barW * ratio, 6, 3); ctx.fill();
   ctx.fillStyle = textCol;
-  ctx.font = '10px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText(Math.round(T_AMB) + '°C', barX, barY - 3);
-  ctx.textAlign = 'right';
-  ctx.fillText(T_FAIL + '°C', barX + barW, barY - 3);
-
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.font = `10px ${FONT}`;
+  ctx.textAlign = 'left';  ctx.fillText(T_AMB + '°C', barX, barY - 4);
+  ctx.textAlign = 'right'; ctx.fillText(T_FAIL + '°C', barX + barW, barY - 4);
 }
 
+/* ── CHARTS ─────────────────────────────────────────────────────────────── */
 let tempChart, effChart;
-function initCharts() {
-  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
-  const gridColor = isDark ? 'rgba(194,192,182,0.1)' : 'rgba(61,61,58,0.08)';
-  const textColor = isDark ? 'rgba(194,192,182,0.7)' : 'rgba(61,61,58,0.6)';
 
-  tempChart = new Chart(document.getElementById('temp-chart'), {
+// 임계 온도 기준선 (수동 플러그인 — 별도 CDN 불필요)
+const thresholdPlugin = {
+  id: 'thresholds',
+  afterDatasetsDraw(chart, _a, opts) {
+    const lines = (opts && opts.lines) || [];
+    const { ctx, chartArea, scales: { y } } = chart;
+    ctx.save();
+    lines.forEach(l => {
+      const yp = y.getPixelForValue(l.v);
+      if (yp < chartArea.top || yp > chartArea.bottom) return;
+      ctx.strokeStyle = l.c; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(chartArea.left, yp); ctx.lineTo(chartArea.right, yp); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = l.c;
+      ctx.font = `bold 12px ${FONT}`;
+      ctx.textAlign = 'right';
+      ctx.fillText(l.label, chartArea.right - 5, yp - 5);
+    });
+    ctx.restore();
+  }
+};
+Chart.register(thresholdPlugin);
+
+function baseScales() {
+  return {
+    x: { ticks: { color: C.textDim, font: { family: FONT, size: 10 }, maxTicksLimit: 8 },
+         grid: { color: C.grid } },
+    y: { ticks: { color: C.textDim, font: { family: FONT, size: 10 } },
+         grid: { color: C.grid } },
+  };
+}
+
+function initCharts() {
+  Chart.defaults.font.family = FONT;
+  Chart.defaults.color = C.textDim;
+
+  const ts = baseScales();
+  ts.y.min = 0; ts.y.max = 300; ts.y.ticks.callback = v => v + '°';
+  tempChart = new Chart($('temp-chart'), {
     type: 'line',
-    data: {
-      labels: [],
-      datasets: [
-        { label: 'BTMS 엔진', data: [], borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,0.08)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true },
-        { label: '냉각 없는 엔진', data: [], borderColor: '#E24B4A', backgroundColor: 'rgba(226,75,74,0.08)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true },
-      ]
-    },
+    data: { labels: [], datasets: [
+      { label: 'BTMS 엔진',    data: [], borderColor: C.cool,     backgroundColor: C.cool + '20',     borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true },
+      { label: '냉각 없는 엔진', data: [], borderColor: C.critical, backgroundColor: C.critical + '20', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true },
+    ]},
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
-      plugins: { legend: { display: false },
-        annotation: { annotations: {
-          warn: { type: 'line', yMin: T_WARN, yMax: T_WARN, borderColor: '#EF9F27', borderWidth: 1, borderDash: [4,4] },
-          crit: { type: 'line', yMin: T_CRIT, yMax: T_CRIT, borderColor: '#A32D2D', borderWidth: 1, borderDash: [4,4] },
-        }}
+      plugins: {
+        legend: { display: false },
+        thresholds: { lines: [
+          { v: T_WARN, c: C.warn,     label: '130°C 경고' },
+          { v: T_CRIT, c: C.critical, label: '200°C 위험' },
+          { v: T_FAIL, c: C.critical, label: '260°C 붕괴' },
+        ]},
       },
-      scales: {
-        x: { ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 8 }, grid: { color: gridColor } },
-        y: { min: 0, max: 300, ticks: { color: textColor, font: { size: 10 }, callback: v => v + '°' }, grid: { color: gridColor } }
-      }
+      scales: ts,
     }
   });
 
-  effChart = new Chart(document.getElementById('eff-chart'), {
+  const es = baseScales();
+  es.y.min = 0; es.y.max = 50; es.y.ticks.callback = v => v + '%';
+  effChart = new Chart($('eff-chart'), {
     type: 'line',
-    data: {
-      labels: [],
-      datasets: [
-        { label: 'BTMS', data: [], borderColor: '#378ADD', borderWidth: 1.5, pointRadius: 0, tension: 0.3, backgroundColor: 'rgba(55,138,221,0.05)', fill: true },
-        { label: '냉각 없음', data: [], borderColor: '#E24B4A', borderWidth: 1.5, pointRadius: 0, tension: 0.3, backgroundColor: 'rgba(226,75,74,0.05)', fill: true },
-      ]
-    },
+    data: { labels: [], datasets: [
+      { label: 'BTMS',     data: [], borderColor: C.cool,     backgroundColor: C.cool + '14',     borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true },
+      { label: '냉각 없음', data: [], borderColor: C.critical, backgroundColor: C.critical + '14', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true },
+    ]},
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 8 }, grid: { color: gridColor } },
-        y: { min: 0, max: 35, ticks: { color: textColor, font: { size: 10 }, callback: v => v + '%' }, grid: { color: gridColor } }
-      }
+      scales: es,
     }
   });
+}
+
+function applyChartTheme() {
+  Chart.defaults.color = C.textDim;
+  [tempChart, effChart].forEach(ch => {
+    if (!ch) return;
+    ch.options.scales.x.grid.color  = C.grid;
+    ch.options.scales.y.grid.color  = C.grid;
+    ch.options.scales.x.ticks.color = C.textDim;
+    ch.options.scales.y.ticks.color = C.textDim;
+    ch.data.datasets[0].borderColor = C.cool;
+    ch.data.datasets[1].borderColor = C.critical;
+  });
+  tempChart.data.datasets[0].backgroundColor = C.cool + '20';
+  tempChart.data.datasets[1].backgroundColor = C.critical + '20';
+  effChart.data.datasets[0].backgroundColor  = C.cool + '14';
+  effChart.data.datasets[1].backgroundColor  = C.critical + '14';
+  tempChart.options.plugins.thresholds.lines = [
+    { v: T_WARN, c: C.warn,     label: '130°C 경고' },
+    { v: T_CRIT, c: C.critical, label: '200°C 위험' },
+    { v: T_FAIL, c: C.critical, label: '260°C 붕괴' },
+  ];
+  tempChart.update('none');
+  effChart.update('none');
 }
 
 function updateCharts() {
   if (!tempChart) return;
-  tempChart.data.labels = [...state.tempHistory.labels];
-  tempChart.data.datasets[0].data = [...state.tempHistory.btms];
-  tempChart.data.datasets[1].data = [...state.tempHistory.none];
+  const H = state.tempHistory, E = state.effHistory;
+  tempChart.data.labels = [...H.labels];
+  tempChart.data.datasets[0].data = [...H.btms];
+  tempChart.data.datasets[1].data = [...H.none];
   tempChart.update('none');
-  effChart.data.labels = [...state.tempHistory.labels];
-  effChart.data.datasets[0].data = [...state.effHistory.btms];
-  effChart.data.datasets[1].data = [...state.effHistory.none];
+  effChart.data.labels = [...H.labels];
+  effChart.data.datasets[0].data = [...E.btms];
+  effChart.data.datasets[1].data = [...E.none];
   effChart.update('none');
 }
 
+function paintLegend() {
+  $('lg-temp-btms').style.background = C.cool;
+  $('lg-temp-none').style.background = C.critical;
+  $('lg-warn').style.background = C.warn;
+  $('lg-crit').style.background = C.critical;
+}
+
+/* ── CONTROLS ───────────────────────────────────────────────────────────── */
+function setSpeed(s) {
+  state.speed = s;
+  [1, 2, 4, 8].forEach(n => $('spd-' + n).classList.toggle('is-active', n === s));
+  // 진행 중이면 다음 틱부터 새 배속이 자동 적용됨 (state.speed 참조)
+}
+
 function startSim() {
-  if (state.running) return;
+  if (state.running || state.t >= MAX_TIME) return;
   state.running = true;
-  document.getElementById('btn-play').textContent = '⏸ 일시정지';
-  const speed = parseInt(document.getElementById('speed-select').value);
+  $('btn-play').textContent = '⏸ 일시정지';
+  $('btn-play').classList.add('is-running');
   state.timer = setInterval(() => {
     if (state.t >= MAX_TIME) { stopSim(); return; }
-    simStep(speed);
+    simStep(state.speed);
     updateUI();
   }, TICK_MS);
 }
 
-function pauseSim() {
+function pauseSimSilent() {
   state.running = false;
   clearInterval(state.timer);
-  document.getElementById('btn-play').textContent = '▶ 재개';
 }
-
+function pauseSim() {
+  pauseSimSilent();
+  $('btn-play').textContent = '▶ 재개';
+  $('btn-play').classList.remove('is-running');
+}
 function stopSim() {
-  state.running = false;
-  clearInterval(state.timer);
-  document.getElementById('btn-play').textContent = '▶ 완료';
+  pauseSimSilent();
+  $('btn-play').textContent = '▶ 완료';
+  $('btn-play').classList.remove('is-running');
   addEvent('btms', `✔ ${state.t}초: 시뮬레이션 완료 — 시스템 정상 운전 유지`, 'normal');
 }
 
 function resetSim() {
   pauseSim();
   state.t = 0;
-  state.btms = { temp: 85, eff: 0.28, failed: false, failTime: null, events: [], _coolEvent: false };
-  state.none = { temp: 85, eff: 0.28, failed: false, failTime: null, events: [], _warn130: false, _crit170: false, _crit200: false };
+  state.btms = { temp: 85, eff: carnotEff(85), failed: false, failTime: null, _coolEvent: false };
+  state.none = { temp: 85, eff: carnotEff(85), failed: false, failTime: null,
+                 _warn130: false, _crit170: false, _crit200: false };
   state.tempHistory = { btms: [], none: [], labels: [] };
-  state.effHistory = { btms: [], none: [] };
-  document.getElementById('log-btms').innerHTML = '<div class="event-item" style="color:var(--color-text-secondary)">시스템 대기 중...</div>';
-  document.getElementById('log-none').innerHTML = '<div class="event-item" style="color:var(--color-text-secondary)">시스템 대기 중...</div>';
-  document.getElementById('btn-play').textContent = '▶ 시작';
-  document.getElementById('time-progress').style.width = '0%';
-  document.getElementById('time-display').textContent = '경과: 0초';
-  document.getElementById('card-none').classList.remove('danger', 'warning');
-  document.getElementById('status-none').textContent = '정상 운전';
-  document.getElementById('status-none').className = 'badge badge-green';
-  document.getElementById('fail-none').style.opacity = '0';
-  document.getElementById('fail-none').textContent = '';
-  document.getElementById('temp-none').style.color = '';
-  document.getElementById('eff-none').style.color = '';
+  state.effHistory  = { btms: [], none: [] };
+  $('log-btms').innerHTML = '<div class="event-item">시스템 대기 중...</div>';
+  $('log-none').innerHTML = '<div class="event-item">시스템 대기 중...</div>';
+  $('btn-play').textContent = '▶ 시작';
+  $('btn-play').classList.remove('is-running');
+  $('card-none').classList.remove('is-danger', 'is-warning');
+  $('fail-none').style.opacity = '0';
+  $('fail-none').textContent = '';
   updateUI();
 }
 
-document.getElementById('btn-play').addEventListener('click', () => {
-  if (state.running) pauseSim(); else startSim();
-});
-document.getElementById('btn-reset').addEventListener('click', resetSim);
+$('btn-play').addEventListener('click', () => { state.running ? pauseSim() : startSim(); });
+$('btn-reset').addEventListener('click', resetSim);
+[1, 2, 4, 8].forEach(n =>
+  $('spd-' + n).addEventListener('click', () => setSpeed(n))
+);
 
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  refreshPalette();
+  applyChartTheme();
+  paintLegend();
+  updateUI();
+});
+
+/* ── INIT ───────────────────────────────────────────────────────────────── */
 initCharts();
+paintLegend();
 updateUI();
 </script>
+</body>
+</html>
