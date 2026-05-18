@@ -4,6 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BTMS Heat-Engine Comparison Simulator</title>
+<script>
+/* 첫 페인트 전에 테마 결정 (FOUC 방지): 저장된 선택 우선, 없으면 OS 설정 */
+(function () {
+  try {
+    var saved = localStorage.getItem('theme');
+    var dark  = saved ? saved === 'dark'
+                      : matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  } catch (e) {
+    document.documentElement.dataset.theme = 'light';
+  }
+})();
+</script>
 <style>
 /* ════════════════════════════════════════════════════════════════════════
    THEME TOKENS  —  identical palette to heat_engine_collapse_simulator.html
@@ -35,8 +48,7 @@
   --c-info-bg:     #e4f1fb;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+:root[data-theme="dark"] {
     color-scheme: dark;
     --c-bg:          #060a14;
     --c-surface:     #0a0e1c;
@@ -58,7 +70,6 @@
     --c-critical-bg: #180404;
     --c-success-bg:  #0c1a0d;
     --c-info-bg:     #071520;
-  }
 }
 
 /* ─── BASE LAYOUT ─────────────────────────────────────────────────────── */
@@ -144,6 +155,18 @@ button {
   background: transparent;
   color: var(--c-text-dim);
 }
+
+.btn-theme {
+  padding: 9px 12px;
+  border: 1px solid var(--c-text-dim);
+  background: transparent;
+  color: var(--c-text-dim);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 1px;
+  border-radius: 6px;
+}
+.btn-theme:hover { border-color: var(--c-accent); color: var(--c-accent); }
 
 .speed-btn {
   padding: 7px 11px;
@@ -284,6 +307,7 @@ button {
       <button class="speed-btn"           id="spd-8" data-speed="8">8×</button>
       <button class="btn-main" id="btn-play">▶ 시작</button>
       <button class="btn-reset" id="btn-reset">↺ 초기화</button>
+      <button class="btn-theme" id="btn-theme">🌙 다크</button>
     </div>
   </header>
 
@@ -828,17 +852,40 @@ $('btn-reset').addEventListener('click', resetSim);
   $('spd-' + n).addEventListener('click', () => setSpeed(n))
 );
 
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+/* ── THEME TOGGLE ───────────────────────────────────────────────────────── */
+function currentTheme() {
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+}
+function setThemeLabel() {
+  $('btn-theme').textContent = currentTheme() === 'dark' ? '☀ 라이트' : '🌙 다크';
+}
+function refreshTheme() {
   refreshPalette();
   applyChartTheme();
   paintLegend();
   updateUI();
+  setThemeLabel();
+}
+function applyTheme(theme, persist) {
+  document.documentElement.dataset.theme = theme;
+  if (persist) { try { localStorage.setItem('theme', theme); } catch (e) {} }
+  refreshTheme();
+}
+$('btn-theme').addEventListener('click',
+  () => applyTheme(currentTheme() === 'dark' ? 'light' : 'dark', true));
+
+// 사용자가 직접 고르지 않았을 때만 OS 설정 변화를 따라감
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+  let saved = null;
+  try { saved = localStorage.getItem('theme'); } catch (_) {}
+  if (!saved) applyTheme(e.matches ? 'dark' : 'light', false);
 });
 
 /* ── INIT ───────────────────────────────────────────────────────────────── */
 initCharts();
 paintLegend();
 updateUI();
+setThemeLabel();
 </script>
 </body>
 </html>
