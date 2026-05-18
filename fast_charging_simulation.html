@@ -333,8 +333,8 @@ input[type=range] {
     <div class="controls">
       <button class="speed-btn"           id="spd-1" data-speed="1">1×</button>
       <button class="speed-btn"           id="spd-2" data-speed="2">2×</button>
-      <button class="speed-btn is-active"  id="spd-4" data-speed="4">4×</button>
-      <button class="speed-btn"           id="spd-8" data-speed="8">8×</button>
+      <button class="speed-btn"           id="spd-4" data-speed="4">4×</button>
+      <button class="speed-btn is-active"  id="spd-8" data-speed="8">8×</button>
       <button class="btn-main" id="btn-play">▶ 시작</button>
       <button class="btn-reset" id="btn-reset">↺ 초기화</button>
       <button class="btn-theme" id="btn-theme">🌙 다크</button>
@@ -348,11 +348,11 @@ input[type=range] {
       <div class="input-cell">
         <div class="input-head">
           <span class="input-name">충전 전류</span>
-          <span class="input-val" id="in-cur-val">200 A</span>
+          <span class="input-val" id="in-cur-val">280 A</span>
         </div>
-        <input type="range" id="in-cur" min="50" max="350" step="10" value="200"
+        <input type="range" id="in-cur" min="50" max="350" step="10" value="280"
                aria-label="충전 전류 (암페어)">
-        <div class="input-sub" id="in-cur-sub">≈ 1.3 C</div>
+        <div class="input-sub" id="in-cur-sub">≈ 1.9 C</div>
       </div>
 
       <div class="input-cell">
@@ -484,6 +484,7 @@ const MASS_PER_KWH = 6;    // kg/kWh    팩 포함 환산 질량
 const R_REF        = 0.08; // Ω         60 kWh 기준 팩 내부저항
 const Q_REF        = 60;   // kWh       기준 용량
 const ALPHA_R      = 0.006;// 1/°C      T_OPT 초과 시 내부저항 증가계수
+const RUN_GAIN     = 1.8;  // —         열폭주 양성 피드백 강도 (T_WARN 초과 시)
 const V_PACK       = 400;  // V         공칭 팩 전압 (충전률·손실률 표시용)
 const H_NAT        = 25;   // W/K       자연 방열(뉴턴 냉각) 계수
 const U_BTMS       = 600;  // W/K       BTMS 열교환 계수
@@ -494,7 +495,9 @@ const SOC_START    = 0.10; // 급속 충전 시작 SOC (10%)
 function thermalMass(capKwh) { return MASS_PER_KWH * capKwh * C_SPEC; }       // J/K
 function rInternal(capKwh, T) {
   const r0  = R_REF * Q_REF / capKwh;                  // 작은 팩일수록 저항↑
-  const fac = T > T_OPT ? 1 + ALPHA_R * (T - T_OPT) : 1;// 고온일수록 저항↑(양성 피드백)
+  let   fac = T > T_OPT ? 1 + ALPHA_R * (T - T_OPT) : 1;// 고온일수록 저항↑(양성 피드백)
+  // 열폭주: 경고 온도(T_WARN) 초과 시 발열반응으로 내부저항이 급격히 증가
+  if (T > T_WARN) fac *= 1 + RUN_GAIN * ((T - T_WARN) / 10) ** 2;
   return r0 * fac;
 }
 function jouleHeat(I, capKwh, T) { return I * I * rInternal(capKwh, T); }      // W = I²R
@@ -506,7 +509,7 @@ function btmsCooling(T, capKwh)  {
 function natCooling(T, Tamb)     { return Math.max(0, H_NAT * (T - Tamb)); }   // h·(T − T_외부)
 
 /* ── INPUT STATE ────────────────────────────────────────────────────────── */
-const input = { current: 200, ambient: 25, durationMin: 45, capacity: 60 };
+const input = { current: 280, ambient: 25, durationMin: 45, capacity: 60 };
 function maxTime() { return input.durationMin * 60; }   // s
 
 /* ── THEME PALETTE ──────────────────────────────────────────────────────────
@@ -547,7 +550,7 @@ function newPack(hasBTMS) {
   };
 }
 const state = {
-  t: 0, running: false, timer: null, speed: 4,
+  t: 0, running: false, timer: null, speed: 8,
   soc: SOC_START,
   btms: newPack(true),
   none: newPack(false),
@@ -572,34 +575,40 @@ function stepPack(p, label) {
   p.eCool += Pcl * DT;
   p.coolEff = p.eGen > 0 ? clamp(p.eCool / p.eGen, 0, 1) : 0;
 
+  // 열폭주: 임계온도 도달 시 온도를 임계값에 고정하고 충전 차단
+  if (p.temp >= T_FAIL) {
+    p.temp   = T_FAIL;
+    p.failed = true; p.failTime = state.t;
+  }
+
   p.maxT = Math.max(p.maxT, p.temp);
   p.sumT += p.temp; p.cnt++;
   p.avgT = p.sumT / p.cnt;
 
   // ── 시나리오 이벤트 (물리식 아님) ──
+  if (p.failed) {
+    addEvent(label, `🔴 ${fmtT(state.t)}: ${T_FAIL}°C 도달 — 열폭주 발생, 충전 차단`, 'crit');
+    return;
+  }
   if (p.hasBTMS) {
     if (!p._stab && p.temp <= T_OPT + 4 && state.t > 30 && p.maxT > T_OPT + 4) {
       p._stab = true;
       addEvent(label, `✔ ${fmtT(state.t)}: BTMS 냉각 평형 — 목표 온도 부근 안정`, 'normal');
     }
-    if (!p._warn && p.temp >= T_WARN) {
+    if (!p._crit && p.temp >= T_CRIT) {
+      p._crit = true;
+      addEvent(label, `⚠ ${fmtT(state.t)}: ${T_CRIT}°C — BTMS 냉각 한계 초과`, 'crit');
+    } else if (!p._warn && p.temp >= T_WARN) {
       p._warn = true;
       addEvent(label, `⚡ ${fmtT(state.t)}: ${T_WARN}°C — BTMS 냉각 한계 접근`, 'warn');
     }
+  } else {
     if (!p._crit && p.temp >= T_CRIT) {
       p._crit = true;
-      addEvent(label, `⚠ ${fmtT(state.t)}: ${T_CRIT}°C — 충전 전류 과다, 셀 열화 위험`, 'crit');
-    }
-  } else {
-    if (p.temp >= T_FAIL) {
-      p.failed = true; p.failTime = state.t;
-      addEvent(label, `🔴 ${fmtT(state.t)}: ${T_FAIL}°C 초과 — 열폭주 위험, 충전 차단`, 'crit');
-    } else if (!p._crit && p.temp >= T_CRIT) {
-      p._crit = true;
-      addEvent(label, `⚠ ${fmtT(state.t)}: ${T_CRIT}°C — 급속 열화 진행`, 'crit');
+      addEvent(label, `⚠ ${fmtT(state.t)}: ${T_CRIT}°C — 급속 열화·열폭주 전조`, 'crit');
     } else if (!p._warn && p.temp >= T_WARN) {
       p._warn = true;
-      addEvent(label, `⚡ ${fmtT(state.t)}: ${T_WARN}°C — 수명 열화 시작`, 'warn');
+      addEvent(label, `⚡ ${fmtT(state.t)}: ${T_WARN}°C — 수명 열화 시작·발열 가속`, 'warn');
     }
   }
 }
@@ -693,8 +702,7 @@ function updateUI() {
   setBadge('btms', b, false);
   setBadge('none', n, true);
 
-  drawPack('canvas-btms', b, state.t);
-  drawPack('canvas-none', n, state.t);
+  // 팩 캔버스는 별도 requestAnimationFrame 루프에서 부드럽게 렌더 (배속 무관)
   updateCharts();
 }
 
@@ -741,6 +749,8 @@ function cellColor(temp, alpha) {
   return `rgba(${R},${G},${B},${alpha})`;
 }
 
+let animClock = 0;   // 실시간(초) 누적 — 애니메이션 위상 (시뮬 배속과 독립)
+
 function drawPack(canvasId, p, time) {
   const canvas = $(canvasId);
   if (!canvas) return;
@@ -756,21 +766,23 @@ function drawPack(canvasId, p, time) {
   const gridW = cols * cw + (cols - 1) * gap;
   const gridH = rows * ch + (rows - 1) * gap;
   const x0 = cx - gridW / 2, y0 = cy - gridH / 2;
+  const failed = p.failed;
 
   // Pack enclosure
   ctx.fillStyle   = cellColor(p.temp, 0.12);
-  ctx.strokeStyle = C.border;
+  ctx.strokeStyle = failed ? C.critical : C.border;
   ctx.lineWidth   = 1.5;
   ctx.beginPath(); ctx.roundRect(x0 - 14, y0 - 12, gridW + 28, gridH + 24, 8); ctx.fill(); ctx.stroke();
 
-  // BTMS cooling plates (top & bottom) + coolant flow
-  if (p.hasBTMS && !p.failed) {
+  // BTMS cooling plates + coolant flow (healthy pack only)
+  if (p.hasBTMS && !failed) {
     ctx.fillStyle = C.cool + '33';
     ctx.beginPath(); ctx.roundRect(x0 - 14, y0 - 12, gridW + 28, 5, 2); ctx.fill();
     ctx.beginPath(); ctx.roundRect(x0 - 14, y0 + gridH + 7, gridW + 28, 5, 2); ctx.fill();
     ctx.fillStyle = C.cool;
+    const span = gridW + 20;
     for (let i = 0; i < 7; i++) {
-      const fx = x0 + ((time * 9 + i * 34) % (gridW + 20)) - 6;
+      const fx = x0 - 6 + ((time * 34 + i * span / 7) % span);
       ctx.beginPath(); ctx.arc(fx, y0 - 9.5, 2, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(fx, y0 + gridH + 9.5, 2, 0, Math.PI * 2); ctx.fill();
     }
@@ -780,38 +792,56 @@ function drawPack(canvasId, p, time) {
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const x = x0 + c * (cw + gap), y = y0 + r * (ch + gap);
-      const wobble = p.failed ? 0 : Math.sin(time * 0.25 + c + r) * 1.5;
-      ctx.fillStyle   = cellColor(p.temp + wobble, p.failed ? 0.4 : 0.8);
-      ctx.strokeStyle = cellColor(p.temp, 1);
-      ctx.lineWidth   = 1;
+      let fill, stroke;
+      if (failed) {
+        const flick = 0.55 + 0.45 * Math.abs(Math.sin(time * 9 + c * 1.7 + r));
+        fill   = `rgba(${230 + Math.round(20 * flick)},${Math.round(70 * flick)},20,0.88)`;
+        stroke = '#7a1500';
+      } else {
+        const wobble = Math.sin(time * 2 + c + r) * 1.5;
+        fill   = cellColor(p.temp + wobble, 0.8);
+        stroke = cellColor(p.temp, 1);
+      }
+      ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.roundRect(x, y, cw, ch, 3); ctx.fill(); ctx.stroke();
       ctx.fillStyle = C.surface;                       // terminal
       ctx.beginPath(); ctx.roundRect(x + cw / 2 - 3, y - 3, 6, 4, 1); ctx.fill();
     }
   }
 
-  // Heat shimmer for an overheating uncooled pack
-  if (!p.failed && p.temp > T_WARN) {
-    const n = Math.min(10, Math.floor((p.temp - T_WARN) / 4));
-    for (let i = 0; i < n; i++) {
-      const px = x0 + (i / n) * gridW + Math.sin(time * 0.4 + i) * 5;
-      const py = y0 - 14 - ((time * 1.1 + i * 13) % 26);
-      const a  = 0.25 + 0.3 * Math.sin(time * 0.3 + i);
-      ctx.fillStyle = cellColor(p.temp + 20, a);
-      ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-
-  // Thermal-runaway caption
-  if (p.failed) {
-    ctx.fillStyle = 'rgba(198,40,40,0.16)';
+  if (failed) {
+    // 열폭주: 맥동하는 적색 글로우 + 연기/불씨 상승
+    const pulse = 0.10 + 0.07 * (0.5 + 0.5 * Math.sin(time * 6));
+    ctx.fillStyle = `rgba(198,40,40,${pulse})`;
     ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 14; i++) {
+      const life = (time * 0.5 + i * 0.37) % 1;          // 0..1 상승 수명
+      const px = x0 + (i + 0.5) / 14 * gridW + Math.sin(time * 1.6 + i) * 7;
+      const py = y0 - 6 - life * 70;
+      if (i % 3 === 0) {                                  // 불씨(ember)
+        ctx.fillStyle = `rgba(255,${120 - Math.round(80 * life)},30,${0.8 * (1 - life)})`;
+        ctx.beginPath(); ctx.arc(px, py, 2.2, 0, Math.PI * 2); ctx.fill();
+      } else {                                            // 연기(smoke)
+        ctx.fillStyle = `rgba(110,110,120,${0.30 * (1 - life)})`;
+        ctx.beginPath(); ctx.arc(px, py, 4 + life * 7, 0, Math.PI * 2); ctx.fill();
+      }
+    }
     ctx.fillStyle = C.critical;
-    ctx.font = `bold 13px ${FONT}`;
+    ctx.font = `bold 14px ${FONT}`;
     ctx.textAlign = 'center';
-    ctx.fillText('⚠ 열폭주 위험', cx, cy - 4);
+    ctx.fillText('⚠ 열폭주 발생', cx, cy - 2);
     ctx.font = `11px ${FONT}`;
     ctx.fillText('충전 차단 · 셀 손상', cx, cy + 16);
+  } else if (p.temp > T_WARN) {
+    // 과열 중인 무냉각 팩 — 아지랑이
+    const n = Math.min(12, Math.ceil((p.temp - T_WARN) / 3));
+    for (let i = 0; i < n; i++) {
+      const life = (time * 0.7 + i * 0.5) % 1;
+      const px = x0 + (i + 0.5) / n * gridW + Math.sin(time * 2.2 + i) * 5;
+      const py = y0 - 12 - life * 26;
+      ctx.fillStyle = cellColor(p.temp + 18, 0.35 * (1 - life));
+      ctx.beginPath(); ctx.arc(px, py, 3 + life * 2, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
   // Temperature scale bar
@@ -819,13 +849,26 @@ function drawPack(canvasId, p, time) {
   const ratio = clamp((p.temp - input.ambient) / (T_FAIL - input.ambient), 0, 1);
   ctx.fillStyle = C.border;
   ctx.beginPath(); ctx.roundRect(barX, barY, barW, 6, 3); ctx.fill();
-  ctx.fillStyle = cellColor(p.temp, 0.9);
+  ctx.fillStyle = failed ? C.critical : cellColor(p.temp, 0.9);
   ctx.beginPath(); ctx.roundRect(barX, barY, barW * ratio, 6, 3); ctx.fill();
   ctx.fillStyle = C.textDim;
   ctx.font = `10px ${FONT}`;
   ctx.textAlign = 'left';  ctx.fillText(input.ambient + '°C', barX, barY - 4);
   ctx.textAlign = 'right'; ctx.fillText(T_FAIL + '°C', barX + barW, barY - 4);
 }
+
+/* 부드러운 애니메이션 — 시뮬레이션 배속과 무관하게 실시간 프레임으로 렌더.
+   물리/지표는 시뮬 틱(updateUI)에서, 시각 효과는 여기서 60fps로 갱신. */
+function renderLoop(ts) {
+  if (renderLoop._last === undefined) renderLoop._last = ts;
+  const dt = Math.min(0.05, (ts - renderLoop._last) / 1000);   // 탭 비활성 점프 방지
+  renderLoop._last = ts;
+  animClock += dt;
+  drawPack('canvas-btms', state.btms, animClock);
+  drawPack('canvas-none', state.none, animClock);
+  requestAnimationFrame(renderLoop);
+}
+requestAnimationFrame(renderLoop);
 
 /* ── CHARTS ─────────────────────────────────────────────────────────────── */
 let tempChart, ceffChart;
