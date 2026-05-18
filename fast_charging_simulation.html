@@ -142,6 +142,8 @@ button {
 
 .btn-main {
   padding: 9px 16px;
+  min-width: 120px;          /* 가장 긴 상태(⏸ 일시정지) 기준 — 라벨이 바뀌어도 크기 고정 */
+  text-align: center;
   border: 1px solid var(--c-success);
   background: transparent;
   color: var(--c-success);
@@ -317,6 +319,14 @@ input[type=range] {
 
 .chart-box { position: relative; width: 100%; height: 230px; }
 .chart-box--sm { height: 170px; }
+
+/* 두 그래프를 같은 행에 — 좁은 화면에서는 세로로 쌓임 */
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; }
+.charts-row .card { display: flex; flex-direction: column; }
+.charts-row .chart-box { flex: 1 1 auto; height: 210px; }
+@media (max-width: 720px) {
+  .charts-row { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -431,6 +441,8 @@ input[type=range] {
 
   </div>
 
+  <div class="charts-row">
+
   <div class="card">
     <div class="label">셀 온도 변화 추이 (°C)</div>
     <div class="legend-row">
@@ -449,6 +461,8 @@ input[type=range] {
     <div class="chart-box chart-box--sm">
       <canvas id="ceff-chart" role="img" aria-label="냉각 효율 변화 차트">냉각 효율: BTMS 배터리는 발생열의 대부분을 제거, 냉각 없는 배터리는 0%.</canvas>
     </div>
+  </div>
+
   </div>
 
 </div>
